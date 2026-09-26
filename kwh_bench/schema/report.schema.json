@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwh.exchange/schema/grade-i/report-1.0.json",
+  "title": "kWh Grade I benchmark report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec", "job", "engine", "hardware", "runs", "warmup", "score", "canary",
+    "power", "certified", "certified_reasons", "prompt_set_sha256",
+    "started_at", "finished_at", "report_sha256", "signature"
+  ],
+  "properties": {
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["series", "spec_version", "bench_version"],
+      "properties": {
+        "series": { "type": "string", "pattern": "^I-[0-9]+$" },
+        "spec_version": { "type": "string" },
+        "bench_version": { "type": "string" }
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requests", "prompt_tokens", "generated_tokens", "generated_tokens_per_job", "concurrency", "sampling"],
+      "properties": {
+        "requests": { "type": "integer" },
+        "prompt_tokens": { "type": "integer" },
+        "generated_tokens": { "type": "integer" },
+        "generated_tokens_per_job": { "type": "integer" },
+        "concurrency": { "type": "integer" },
+        "sampling": { "type": "object" }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "model_id", "model_revision", "launch_mode", "launch_args", "server_url", "certified_engine"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": ["string", "null"] },
+        "model_id": { "type": "string" },
+        "model_revision": { "type": ["string", "null"] },
+        "launch_mode": { "type": "string", "enum": ["subprocess", "docker", "attached", "inprocess"] },
+        "launch_args": { "type": "array", "items": { "type": "string" } },
+        "server_url": { "type": ["string", "null"] },
+        "certified_engine": { "type": "boolean" },
+        "extra": { "type": "object" }
+      }
+    },
+    "hardware": {
+      "type": "object",
+      "required": ["gpus", "cpu_model", "ram_gib", "os", "python"],
+      "properties": {
+        "gpus": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "vram_mib", "driver_version"],
+            "properties": {
+              "name": { "type": "string" },
+              "vram_mib": { "type": ["integer", "null"] },
+              "driver_version": { "type": ["string", "null"] },
+              "pcie_gen": { "type": ["integer", "null"] },
+              "pcie_width": { "type": ["integer", "null"] },
+              "power_limit_w": { "type": ["number", "null"] },
+              "uuid": { "type": ["string", "null"] },
+              "compute_capability": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "cuda_version": { "type": ["string", "null"] },
+        "cpu_model": { "type": ["string", "null"] },
+        "cpu_cores_physical": { "type": ["integer", "null"] },
+        "cpu_threads": { "type": ["integer", "null"] },
+        "ram_gib": { "type": "number" },
+        "os": { "type": "string" },
+        "platform": { "type": "string" },
+        "python": { "type": "string" },
+        "kwh_bench": { "type": "string" },
+        "hostname_hash": { "type": "string" }
+      }
+    },
+    "warmup": { "$ref": "#/$defs/run" },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/run" }
+    },
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["units_per_hour", "median_job_seconds", "min_job_seconds", "max_job_seconds", "stability", "mean_power_watts", "units_per_electric_kwh"],
+      "properties": {
+        "units_per_hour": { "type": ["number", "null"] },
+        "median_job_seconds": { "type": "number" },
+        "min_job_seconds": { "type": "number" },
+        "max_job_seconds": { "type": "number" },
+        "stability": { "type": ["number", "null"] },
+        "mean_power_watts": { "type": ["number", "null"] },
+        "units_per_electric_kwh": { "type": ["number", "null"] }
+      }
+    },
+    "canary": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["passed", "passing", "required", "results"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "passing": { "type": "integer" },
+        "required": { "type": "integer" },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["prompt_id", "matched", "of", "pass"],
+            "properties": {
+              "prompt_id": { "type": "integer" },
+              "matched": { "type": "integer" },
+              "of": { "type": "integer" },
+              "pass": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "power": {
+      "type": "object",
+      "required": ["available", "samples", "mean_watts", "energy_wh"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "samples": { "type": "integer" },
+        "mean_watts": { "type": ["number", "null"] },
+        "energy_wh": { "type": ["number", "null"] }
+      }
+    },
+    "certified": { "type": "boolean" },
+    "certified_reasons": { "type": "array", "items": { "type": "string" } },
+    "prompt_set_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lock_sha256": { "type": ["string", "null"] },
+    "started_at": { "type": "string" },
+    "finished_at": { "type": "string" },
+    "report_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "signature": { "type": ["object", "null"] }
+  },
+  "$defs": {
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["job_seconds", "generated_tokens", "tokens_per_second", "request_failures", "ttft_p50_s", "ttft_p95_s", "tpot_p50_s", "tpot_p95_s"],
+      "properties": {
+        "job_seconds": { "type": "number" },
+        "generated_tokens": { "type": "integer" },
+        "tokens_per_second": { "type": "number" },
+        "request_failures": { "type": "integer" },
+        "ttft_p50_s": { "type": ["number", "null"] },
+        "ttft_p95_s": { "type": ["number", "null"] },
+        "tpot_p50_s": { "type": ["number", "null"] },
+        "tpot_p95_s": { "type": ["number", "null"] }
+      }
+    }
+  }
+}

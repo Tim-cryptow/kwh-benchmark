@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e .[dev]
+      - name: prompt set reproduces pinned hash
+        run: kwh-bench prompts --check
+      - name: canonical prompt file is committed and current
+        run: |
+          kwh-bench prompts --out /tmp/p.jsonl >/dev/null
+          cmp /tmp/p.jsonl prompts/i1-prompts.jsonl
+      - run: pytest -q
+      - name: mock end-to-end + verify
+        run: |
+          kwh-bench run --engine mock --runs 3 --out /tmp/mock.json
+          kwh-bench verify /tmp/mock.json

@@ -1,0 +1,51 @@
+{
+  "series": "I-1",
+  "spec_version": "1.0.0-rc.1",
+  "model": {
+    "id": "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8",
+    "revision": null,
+    "files": {}
+  },
+  "engine": {
+    "vllm": {
+      "version": null,
+      "image": null
+    }
+  },
+  "canaries": [
+    {
+      "prompt_id": 16,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 48,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 80,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 112,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 144,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 176,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 208,
+      "expected_token_ids": []
+    },
+    {
+      "prompt_id": 240,
+      "expected_token_ids": []
+    }
+  ],
+  "locked_at": null,
+  "locked_on": null
+}
