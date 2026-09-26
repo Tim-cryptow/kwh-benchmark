@@ -70,6 +70,15 @@ class Engine(ABC):
         """
         ...
 
+    async def score_continuation(self, prompt_ids: List[int], continuation_ids: List[int]) -> List[float]:
+        """Teacher-forced per-token logprobs of `continuation_ids` given `prompt_ids`.
+
+        Used by the canary check (SPEC.md §7). Certified engines must implement
+        it; uncertified engines may raise NotImplementedError (canary is then
+        reported as null).
+        """
+        raise NotImplementedError
+
     async def __aenter__(self):
         await self.start()
         return self

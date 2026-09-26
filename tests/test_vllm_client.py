@@ -45,6 +45,11 @@ async def fake_app(scope, receive, send):
         req = json.loads(body)
         SEEN["completion"] = req
         n = req["max_tokens"]
+        if not req.get("stream"):
+            # teacher-forced scoring: prompt_logprobs for every prompt token
+            plp = [None] + [{str(t): {"logprob": -0.001 * t, "rank": 1}} for t in req["prompt"][1:]]
+            payload = {"choices": [{"index": 0, "text": "x", "prompt_logprobs": plp}], "usage": {"completion_tokens": 1}}
+            return await respond(200, json.dumps(payload).encode())
         await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"text/event-stream")]})
         for i in range(n):
             chunk = {"choices": [{"index": 0, "text": f"t{i}", "finish_reason": None}]}
@@ -129,3 +134,10 @@ def test_build_docker_argv():
     assert argv[argv.index("vllm/vllm-openai:test") + 1] == ref.MODEL_ID
     assert "--max-num-seqs" in argv and "--no-enable-prefix-caching" in argv
     assert "--disable-log-requests" not in argv
+
+
+async def test_score_continuation_reads_prompt_logprobs(engine):
+    lps = await engine.score_continuation([1, 2, 3], [10, 20])
+    req = SEEN["completion"]
+    assert req["prompt"] == [1, 2, 3, 10, 20] and req["prompt_logprobs"] == 0 and req["max_tokens"] == 1
+    assert lps == [-0.01, -0.02]

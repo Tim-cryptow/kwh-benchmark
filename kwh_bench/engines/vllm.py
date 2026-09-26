@@ -131,6 +131,38 @@ class VLLMEngine(Engine):
         r.raise_for_status()
         return list(r.json()["tokens"])
 
+    async def score_continuation(self, prompt_ids: List[int], continuation_ids: List[int]) -> List[float]:
+        """Per-token logprobs of `continuation_ids` via vLLM's `prompt_logprobs`.
+
+        The full sequence is sent as the prompt; `prompt_logprobs=0` returns
+        the logprob of each actual prompt token. One token is generated and
+        discarded (vLLM requires max_tokens >= 1).
+        """
+        body = {
+            "model": self._served_model,
+            "prompt": list(prompt_ids) + list(continuation_ids),
+            "max_tokens": 1,
+            "temperature": 0.0,
+            "prompt_logprobs": 0,
+            "stream": False,
+        }
+        r = await self._client.post("/v1/completions", json=body)
+        r.raise_for_status()
+        plp = r.json()["choices"][0].get("prompt_logprobs")
+        if not plp:
+            raise RuntimeError("engine returned no prompt_logprobs")
+        tail = plp[-len(continuation_ids):]
+        out: List[float] = []
+        for tok, entry in zip(continuation_ids, tail):
+            if entry is None:
+                raise RuntimeError("missing prompt_logprobs entry")
+            item = entry.get(str(tok)) or entry.get(tok)
+            if item is None:
+                # prompt_logprobs=0 returns only the actual token; take it.
+                item = next(iter(entry.values()))
+            out.append(float(item["logprob"] if isinstance(item, dict) else item))
+        return out
+
     async def complete(self, token_ids: List[int], max_tokens: int, want_token_ids: bool = False) -> Completion:
         body = {
             "model": self._served_model,

@@ -1,6 +1,6 @@
 # kWh Grade I Unit Specification
 
-**Spec version:** 1.0.0-rc.1 (becomes 1.0.0 at lock, see §9)
+**Spec version:** 1.0.0-rc.2 (becomes 1.0.0 at lock, see §9)
 **Unit series:** `I-1`
 **Status:** Release candidate. Every number in this document is fixed except the fields listed in §9 (weight hashes, canary expectations, exact engine build), which are filled in by `kwh-bench lock` on the reference node before 1.0.0 is tagged.
 
@@ -103,8 +103,8 @@ The Docker path uses the official `vllm/vllm-openai` image at the pinned tag; `s
 3. **Prepare** the prompt set: verify `PROMPT_SET_SHA256`, tokenize, truncate to 512 IDs.
 4. **Warm-up:** one complete reference job, discarded. This absorbs model load, CUDA graph capture, kernel autotuning and memory allocation.
 5. **Measured runs:** `N` complete reference jobs back to back, default `N = 3`, minimum 3 for a certified result. Between runs there is no pause; a rig that throttles thermally shows it here.
-6. **Canary check** (§7) on the outputs of the first measured run.
-7. **Power sampling** at 1 Hz throughout the measured runs, when the platform exposes it (`nvidia-smi` power draw), integrated to watt-hours.
+6. **Power sampling** at 1 Hz throughout the measured runs, when the platform exposes it (`nvidia-smi` power draw), integrated to watt-hours.
+7. **Canary check** (§7): score the locked continuations, one request at a time, after the measured runs.
 8. **Report** (§8), schema-validated, hashed.
 
 ### Score
@@ -119,12 +119,16 @@ The Docker path uses the official `vllm/vllm-openai` image at the pinned tag; `s
 
 The canary check is a light, in-benchmark guard that the engine is serving the reference model rather than something smaller or more aggressively quantized. It is not the delivery verification layer (build step 3); it is a sanity check.
 
-- 8 of the 256 prompts (IDs listed in `reference/lock.json`) are canaries.
-- For each canary, `reference/lock.json` records the first 32 token IDs of the greedy continuation as produced by the certified engine on the reference node at lock time.
-- A canary **matches** if at least 28 of its first 32 generated token IDs equal the recorded values position-by-position. The tolerance absorbs floating-point nondeterminism between GPU architectures; a different model or quantization diverges within a few tokens.
-- The run **passes** the canary check if at least 6 of 8 canaries match. Failure is reported as `canary: {passed: false}` and the result is `certified: false` with reason `canary`.
+The host does **not** have to reproduce the reference node's output. Greedy argmax is not stable across batch shapes, kernels or GPU generations: on near-tie tokens it flips, and after one flip the sequences diverge. rc.1 tried exact token matching and failed its own reference machine. Instead the host **scores** the reference continuation:
 
-Uncertified engines skip the canary check (their numerics legitimately differ) and report `canary: null`.
+- 8 of the 256 prompts (IDs listed in `reference/lock.json`) are canaries.
+- At lock time, for each canary, the reference node records the first 32 token IDs of its greedy continuation **and** the mean per-token log-probability it assigns to those 32 tokens under teacher forcing (`prompt_logprobs` on prompt + continuation).
+- At benchmark time, after the measured runs, the host computes the same teacher-forced mean log-probability for the same 32 tokens, one request at a time. A canary **passes** if `|host − reference| ≤ 0.10` nats.
+- The run **passes** the canary check if at least 6 of 8 canaries pass. Failure is reported as `canary: {passed: false}` and the result is `certified: false` with reason `canary`.
+
+Why this works: numerical noise between kernels or architectures moves a mean log-probability over 32 tokens by hundredths of a nat; serving a different model, a different checkpoint or a coarser quantization moves it by tenths or more, because the locked continuation is the reference model's own greedy path and no other model finds those exact tokens as likely. The tolerance (0.10) is calibrated during the rc phase: it must accept every certified card in `results/` and reject an FP16 or 4-bit variant of the base model. Calibration runs are recorded in `results/canary-calibration.md`.
+
+Canary scoring happens outside the timed jobs and adds no work to the reference job. Uncertified engines skip the canary check and report `canary: null`.
 
 ## 8. Report
 
@@ -138,7 +142,7 @@ Uncertified engines skip the canary check (their numerics legitimately differ) a
 | `hardware` | GPU name, VRAM, driver, CUDA version, PCIe generation/width where available, CPU model, RAM, OS, kernel, Python |
 | `runs` | per measured run: job_seconds, tokens_per_second, TTFT p50/p95, TPOT p50/p95, request failures |
 | `score` | `units_per_hour`, `median_job_seconds`, `stability`, `units_per_electric_kwh`, `mean_power_watts` |
-| `canary` | passed flag, per-canary match counts, or `null` |
+| `canary` | passed flag, per-canary host/reference mean log-probabilities and deltas, or `null` |
 | `certified` | boolean; `certified_reasons` lists every failing condition when false |
 | `prompt_set_sha256` | must equal `PROMPT_SET_SHA256` |
 | `started_at`, `finished_at` | UTC ISO-8601 |
@@ -154,7 +158,7 @@ Fields that can only be produced with the actual weights and the actual engine b
 - `model.revision` — the Hugging Face commit hash of the checkpoint used.
 - `model.files` — SHA-256 of each weight and tokenizer file.
 - `engine.vllm.version` and `engine.vllm.image` — the exact certified build.
-- `canaries[]` — the 8 canary prompt IDs and their 32 expected token IDs.
+- `canaries[]` — the 8 canary prompt IDs, their 32-token reference continuations, and the reference mean log-probability of each.
 - `locked_at`, `locked_on` (hardware of the reference node).
 
 Tagging `v1.0.0` requires a committed `reference/lock.json` with no null fields, and a `results/` table from at least three consumer cards produced by that build. Until then the spec is `1.0.0-rc.N` and every report it produces carries `certified: false` with reason `unlocked`.

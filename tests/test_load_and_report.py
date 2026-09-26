@@ -65,23 +65,47 @@ def test_score_runs_median_and_stability():
     assert s["stability"] == round(2.0 / 41.0, 5)
 
 
-def test_canary_evaluation():
-    from kwh_bench.load import RequestRecord
-    exp = list(range(ref.CANARY_TOKENS))
-    lock = Lock(canaries=[Canary(prompt_id=i, expected_token_ids=exp) for i in range(ref.CANARY_COUNT)])
-    recs = []
-    for i in range(ref.CANARY_COUNT):
-        got = list(exp)
-        if i < 2:                      # two canaries diverge badly (wrong model)
-            got = [999] * ref.CANARY_TOKENS
-        elif i == 2:                   # one canary drifts by 3 tokens (fp noise) -> still passes
-            got[-3:] = [1, 2, 3]
-        recs.append(RequestRecord(prompt_id=i, ttft_s=0.1, tpot_s=0.01, completion_tokens=256, token_ids=got))
-    c = evaluate_canary(recs, lock)
+def _locked(ref_lp=-1.0):
+    return Lock(model_revision="abc", model_files={"a.safetensors": "0" * 64}, vllm_version="0.30.0",
+                canaries=[Canary(i, list(range(ref.CANARY_TOKENS)), ref_lp) for i in range(ref.CANARY_COUNT)])
+
+
+def test_canary_evaluation_logprob_delta():
+    lock = _locked(ref_lp=-1.0)
+    assert lock.is_locked
+    scores = {i: -1.0 for i in range(ref.CANARY_COUNT)}
+    scores[0] = -1.0 + 0.03            # numerical noise: passes
+    scores[1] = -1.0 - 0.09            # inside tolerance: passes
+    scores[2] = -1.6                   # different model/quant: fails
+    scores[3] = None                   # scoring failed: fails
+    c = evaluate_canary(scores, lock)
     assert c["passing"] == 6 and c["passed"] is True
-    recs[3].token_ids = [7] * ref.CANARY_TOKENS
-    c = evaluate_canary(recs, lock)
-    assert c["passing"] == 5 and c["passed"] is False
+    assert c["results"][2]["pass"] is False and c["results"][3]["delta"] is None
+    scores[4] = -0.5                   # a third failure -> below 6/8
+    assert evaluate_canary(scores, lock)["passed"] is False
+
+
+def test_canary_none_when_unlocked():
+    assert evaluate_canary({}, Lock()) is None
+
+
+async def test_lock_and_run_roundtrip_on_mock(tmp_path, fast_engine):
+    """Lock on the mock, then benchmark on the mock: every canary delta must be 0."""
+    from kwh_bench.runner import score_canaries
+    from kwh_bench.load import PreparedPrompt
+    prepared = [PreparedPrompt(id=i, token_ids=[i] * 8) for i in range(ref.REQUESTS_PER_JOB)]
+    async with fast_engine as e:
+        canaries = []
+        for pid in default_canary_ids():
+            p = prepared[pid]
+            c = await e.complete(p.token_ids, ref.CANARY_TOKENS, want_token_ids=True)
+            lps = await e.score_continuation(p.token_ids, c.token_ids)
+            canaries.append(Canary(pid, c.token_ids, sum(lps) / len(lps)))
+        lock = Lock(model_revision="r", model_files={"w.safetensors": "0" * 64}, vllm_version="x", canaries=canaries)
+        assert lock.is_locked
+        scores = await score_canaries(e, prepared, lock, lambda s: None)
+    c = evaluate_canary(scores, lock)
+    assert c["passed"] and all(r["delta"] == 0 for r in c["results"])
 
 
 def test_default_canary_ids_are_fixed_and_in_range():
@@ -117,14 +141,12 @@ def test_forbidden_flags_block_certification():
     from kwh_bench.engines.base import EngineInfo
     from kwh_bench.load import JobResult
     from kwh_bench.report import certification_reasons
-    lock = Lock(model_revision="abc", model_files={"a.safetensors": "0" * 64}, vllm_version="0.10.1",
-                canaries=[Canary(i, list(range(ref.CANARY_TOKENS))) for i in range(ref.CANARY_COUNT)])
-    assert lock.is_locked
-    info = EngineInfo(name="vllm", version="0.10.1", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess",
+    lock = _locked()
+    info = EngineInfo(name="vllm", version="0.30.0", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess",
                       launch_args=["--model", ref.MODEL_ID, "--max-num-seqs", "32", "--speculative-config", "{}"])
     runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
     score = score_runs([40.0, 40.0, 40.0])
-    canary = {"passed": True, "passing": 8, "required": 6, "results": []}
+    canary = {"passed": True, "passing": 8, "required": 6, "max_delta": 0.1, "results": []}
     reasons = certification_reasons(info, runs, score, canary, lock)
     assert reasons == ["forbidden flag --speculative-config"]
     info.launch_args = ["--model", ref.MODEL_ID, "--max-num-seqs", "32"]

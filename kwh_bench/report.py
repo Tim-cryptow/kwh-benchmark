@@ -13,7 +13,7 @@ import jsonschema
 from . import __version__
 from . import reference as ref
 from .engines.base import EngineInfo
-from .load import JobResult, RequestRecord, score_runs
+from .load import JobResult, score_runs
 from .lockfile import Lock, canonical_json, lock_sha256
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema" / "report.schema.json"
@@ -40,19 +40,25 @@ def report_hash(report: dict) -> str:
 
 # --- canary -------------------------------------------------------------
 
-def evaluate_canary(records: List[RequestRecord], lock: Lock) -> Optional[dict]:
-    if not lock.canaries or any(len(c.expected_token_ids) < ref.CANARY_TOKENS for c in lock.canaries):
+def evaluate_canary(scores: Dict[int, Optional[float]], lock: Lock) -> Optional[dict]:
+    """`scores` maps canary prompt id -> the host's mean per-token logprob for the
+    locked continuation (None if scoring failed). Compared against the lock."""
+    if not lock.is_locked:
         return None  # unlocked: nothing to compare against
-    by_id = {r.prompt_id: r for r in records}
     results = []
     for c in lock.canaries:
-        r = by_id.get(c.prompt_id)
-        got = (r.token_ids or []) if r and r.error is None else []
-        n = min(ref.CANARY_TOKENS, len(c.expected_token_ids))
-        matched = sum(1 for i in range(n) if i < len(got) and got[i] == c.expected_token_ids[i])
-        results.append({"prompt_id": c.prompt_id, "matched": matched, "of": n, "pass": matched >= ref.CANARY_MIN_TOKEN_MATCH})
+        got = scores.get(c.prompt_id)
+        delta = abs(got - c.reference_mean_logprob) if got is not None else None
+        results.append({
+            "prompt_id": c.prompt_id,
+            "mean_logprob": round(got, 5) if got is not None else None,
+            "reference_mean_logprob": round(c.reference_mean_logprob, 5),
+            "delta": round(delta, 5) if delta is not None else None,
+            "pass": delta is not None and delta <= ref.CANARY_MAX_LOGPROB_DELTA,
+        })
     passing = sum(1 for x in results if x["pass"])
-    return {"passed": passing >= ref.CANARY_MIN_PASSING, "passing": passing, "required": ref.CANARY_MIN_PASSING, "results": results}
+    return {"passed": passing >= ref.CANARY_MIN_PASSING, "passing": passing, "required": ref.CANARY_MIN_PASSING,
+            "max_delta": ref.CANARY_MAX_LOGPROB_DELTA, "results": results}
 
 
 # --- certification ------------------------------------------------------
@@ -108,6 +114,7 @@ def build_report(
     lock: Lock,
     prompt_set_sha256: str,
     started_at: str,
+    canary_scores: Optional[Dict[int, Optional[float]]] = None,
     finished_at: Optional[str] = None,
 ) -> dict:
     score = score_runs([r.job_seconds for r in runs])
@@ -116,7 +123,7 @@ def build_report(
     score["units_per_electric_kwh"] = (
         round(score["units_per_hour"] / (mean_w / 1000.0), 2) if (mean_w and score.get("units_per_hour")) else None
     )
-    canary = evaluate_canary(runs[0].records, lock) if engine.name in ref.CERTIFIED_ENGINES else None
+    canary = evaluate_canary(canary_scores or {}, lock) if engine.name in ref.CERTIFIED_ENGINES else None
     reasons = certification_reasons(engine, runs, score, canary, lock)
     report = {
         "spec": {"series": ref.SERIES, "spec_version": ref.SPEC_VERSION, "bench_version": __version__},

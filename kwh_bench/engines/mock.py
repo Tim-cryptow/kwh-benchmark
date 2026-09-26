@@ -54,6 +54,15 @@ class MockEngine(Engine):
                 out.append((h >> 7) % self.vocab)
         return out
 
+    async def score_continuation(self, prompt_ids: List[int], continuation_ids: List[int]) -> List[float]:
+        # Deterministic pseudo-logprobs so lock/run round-trips are exact in tests.
+        out = []
+        for i, t in enumerate(continuation_ids):
+            h = int.from_bytes(hashlib.blake2b(f"{prompt_ids[:4]}|{i}|{t}".encode(), digest_size=4).digest(), "big")
+            out.append(-(h % 3000) / 1000.0)
+        await asyncio.sleep(0)
+        return out
+
     async def complete(self, token_ids: List[int], max_tokens: int, want_token_ids: bool = False) -> Completion:
         assert self._started, "engine not started"
         started = time.perf_counter()

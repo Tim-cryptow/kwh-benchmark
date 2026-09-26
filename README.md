@@ -55,6 +55,15 @@ certified: YES
 
 (Illustrative numbers. The real ones go in `results/`.)
 
+## RunPod (or any pod that can't run Docker)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Tim-cryptow/kwh-benchmark/main/scripts/runpod.sh) --lock   # reference node
+bash <(curl -fsSL https://raw.githubusercontent.com/Tim-cryptow/kwh-benchmark/main/scripts/runpod.sh)          # every other card
+```
+
+Installs the pinned vLLM with pip, clones this repo, runs lock (with `--lock`) and the benchmark, and verifies the report. ~10 minutes on a 24GB card including the weights download.
+
 ## What "certified" means
 
 A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, and the canary check passed. `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.

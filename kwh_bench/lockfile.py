@@ -17,7 +17,8 @@ LOCK_PATH = REPO_ROOT / "reference" / "lock.json"
 @dataclass
 class Canary:
     prompt_id: int
-    expected_token_ids: List[int]
+    expected_token_ids: List[int]                 # reference node's greedy continuation
+    reference_mean_logprob: Optional[float] = None  # its mean per-token logprob, teacher-forced
 
 
 @dataclass
@@ -38,7 +39,8 @@ class Lock:
         return bool(
             self.model_revision and self.model_files and self.vllm_version
             and len(self.canaries) == ref.CANARY_COUNT
-            and all(len(c.expected_token_ids) == ref.CANARY_TOKENS for c in self.canaries)
+            and all(len(c.expected_token_ids) == ref.CANARY_TOKENS and c.reference_mean_logprob is not None
+                    for c in self.canaries)
         )
 
     def canary_ids(self) -> set:
@@ -50,7 +52,11 @@ class Lock:
             "spec_version": self.spec_version,
             "model": {"id": self.model_id, "revision": self.model_revision, "files": self.model_files},
             "engine": {"vllm": {"version": self.vllm_version, "image": self.vllm_image}},
-            "canaries": [{"prompt_id": c.prompt_id, "expected_token_ids": c.expected_token_ids} for c in self.canaries],
+            "canaries": [
+                {"prompt_id": c.prompt_id, "expected_token_ids": c.expected_token_ids,
+                 "reference_mean_logprob": c.reference_mean_logprob}
+                for c in self.canaries
+            ],
             "locked_at": self.locked_at,
             "locked_on": self.locked_on,
         }
@@ -67,7 +73,11 @@ class Lock:
             model_files=m.get("files") or {},
             vllm_version=e.get("version"),
             vllm_image=e.get("image"),
-            canaries=[Canary(int(c["prompt_id"]), [int(t) for t in c["expected_token_ids"]]) for c in d.get("canaries", [])],
+            canaries=[
+                Canary(int(c["prompt_id"]), [int(t) for t in c["expected_token_ids"]],
+                       (float(c["reference_mean_logprob"]) if c.get("reference_mean_logprob") is not None else None))
+                for c in d.get("canaries", [])
+            ],
             locked_at=d.get("locked_at"),
             locked_on=d.get("locked_on"),
         )

@@ -12,7 +12,7 @@ from typing import Callable, List, Optional
 from . import reference as ref
 from .engines.base import Engine
 from .hardware import PowerSampler, probe
-from .load import JobResult, prepare_prompts, run_job
+from .load import JobResult, PreparedPrompt, prepare_prompts, run_job
 from .lockfile import Canary, Lock, default_canary_ids, load_lock, save_lock
 from .prompts import canonical_prompts, load_prompt_file, sha256_text, to_jsonl
 from .report import build_report, now_iso
@@ -50,8 +50,6 @@ async def run_benchmark(
         log("tokenizing prompt set")
         prepared = await prepare_prompts(engine, prompts)
 
-        canary_ids = lock.canary_ids() if engine.name in ref.CERTIFIED_ENGINES else set()
-
         log("warm-up job")
         warmup = await run_job(engine, prepared, concurrency=concurrency)
         log(f"  warm-up {warmup.job_seconds:.2f}s  {warmup.tokens_per_second:.0f} tok/s  failures={warmup.failures}")
@@ -61,11 +59,17 @@ async def run_benchmark(
         runs: List[JobResult] = []
         try:
             for i in range(measured_jobs):
-                res = await run_job(engine, prepared, concurrency=concurrency, want_ids_for=canary_ids if i == 0 else set())
+                res = await run_job(engine, prepared, concurrency=concurrency)
                 runs.append(res)
                 log(f"  run {i + 1}/{measured_jobs}  {res.job_seconds:.2f}s  {res.tokens_per_second:.0f} tok/s  failures={res.failures}")
         finally:
             trace = await sampler.stop()
+
+        # Canary: score the locked continuations (SPEC.md §7). Outside the timed jobs.
+        canary_scores = {}
+        if engine.name in ref.CERTIFIED_ENGINES and lock.is_locked:
+            log("canary check")
+            canary_scores = await score_canaries(engine, prepared, lock, log)
 
     return build_report(
         engine=info,
@@ -76,7 +80,29 @@ async def run_benchmark(
         lock=lock,
         prompt_set_sha256=prompt_hash,
         started_at=started_at,
+        canary_scores=canary_scores,
     )
+
+
+async def score_canaries(engine: Engine, prepared: List[PreparedPrompt], lock: Lock, log: Log) -> dict:
+    """Mean teacher-forced logprob per canary, one request at a time."""
+    by_id = {p.id: p for p in prepared}
+    out = {}
+    for c in lock.canaries:
+        p = by_id.get(c.prompt_id)
+        if p is None:
+            out[c.prompt_id] = None
+            continue
+        try:
+            lps = await engine.score_continuation(p.token_ids, c.expected_token_ids)
+            out[c.prompt_id] = sum(lps) / len(lps)
+            log(f"  canary {c.prompt_id}: mean logprob {out[c.prompt_id]:+.4f} (reference {c.reference_mean_logprob:+.4f})")
+        except NotImplementedError:
+            out[c.prompt_id] = None
+        except Exception as e:  # noqa: BLE001
+            log(f"  canary {c.prompt_id}: error {type(e).__name__}: {e}")
+            out[c.prompt_id] = None
+    return out
 
 
 # --- lock ---------------------------------------------------------------
@@ -134,13 +160,17 @@ async def lock_reference(
         if info.name not in ref.CERTIFIED_ENGINES:
             raise ValueError("lock must run on a certified engine")
         prepared = await prepare_prompts(engine, [by_id[i] for i in ids])
-        log("generating canary continuations (greedy)")
+        log("generating canary continuations (greedy) and scoring them")
         canaries: List[Canary] = []
         for p in prepared:
             c = await engine.complete(p.token_ids, ref.CANARY_TOKENS, want_token_ids=True)
             if not c.token_ids or len(c.token_ids) < ref.CANARY_TOKENS:
                 raise RuntimeError(f"canary {p.id}: got {len(c.token_ids or [])} token ids, need {ref.CANARY_TOKENS}")
-            canaries.append(Canary(prompt_id=p.id, expected_token_ids=c.token_ids[: ref.CANARY_TOKENS]))
+            expected = c.token_ids[: ref.CANARY_TOKENS]
+            lps = await engine.score_continuation(p.token_ids, expected)
+            mean_lp = sum(lps) / len(lps)
+            log(f"  canary {p.id}: mean logprob {mean_lp:+.4f}")
+            canaries.append(Canary(prompt_id=p.id, expected_token_ids=expected, reference_mean_logprob=round(mean_lp, 6)))
 
     lock = Lock(
         model_revision=revision,

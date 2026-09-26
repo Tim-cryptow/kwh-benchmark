@@ -9,7 +9,7 @@ from __future__ import annotations
 # --- Identity -------------------------------------------------------------
 
 SERIES = "I-1"
-SPEC_VERSION = "1.0.0-rc.1"
+SPEC_VERSION = "1.0.0-rc.2"
 
 # --- SERIES-DEFINING: the work (SPEC.md §2-§5) ---------------------------
 
@@ -52,10 +52,16 @@ MAX_STABILITY = 0.10                     # (max - min) / median across measured 
 POWER_SAMPLE_HZ = 1.0
 
 # --- Canary (SPEC.md §7) -------------------------------------------------
+# The host does not reproduce the reference continuation (greedy argmax is
+# not stable across batch shapes and kernels); it *scores* it. The lock
+# records, per canary, the reference node's greedy 32-token continuation and
+# the mean per-token logprob it assigns to that continuation under teacher
+# forcing. A host passes a canary if its own mean logprob for the same tokens
+# is within CANARY_MAX_LOGPROB_DELTA nats of the reference value.
 
 CANARY_COUNT = 8
 CANARY_TOKENS = 32
-CANARY_MIN_TOKEN_MATCH = 28              # of 32, per canary
+CANARY_MAX_LOGPROB_DELTA = 0.10          # nats, on the mean per-token logprob
 CANARY_MIN_PASSING = 6                   # of 8 canaries
 
 # --- Certified engine (SPEC.md §5) --------------------------------------
