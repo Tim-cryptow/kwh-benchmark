@@ -36,7 +36,7 @@
   "hardware": {
     "gpus": [],
     "cuda_version": null,
-    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.10GHz",
     "cpu_cores_physical": 2,
     "cpu_threads": 2,
     "ram_gib": 7.8,
@@ -46,54 +46,71 @@
     "kwh_bench": "1.0.0rc2",
     "hostname_hash": "5bce98f73f3ed0c8"
   },
+  "preflight": {
+    "available": false,
+    "seconds": 5.0,
+    "samples": 0,
+    "idle": null,
+    "reasons": [],
+    "mem_total_mib": null,
+    "mem_used_mib_max": null,
+    "free_fraction_min": null,
+    "util_pct_mean": null,
+    "util_pct_max": null,
+    "power_w_mean": null,
+    "thresholds": {
+      "max_util_pct": 5.0,
+      "min_free_fraction": 0.95
+    }
+  },
   "warmup": {
-    "job_seconds": 2.8219,
+    "job_seconds": 2.7979,
     "generated_tokens": 65536,
-    "tokens_per_second": 23224.07,
+    "tokens_per_second": 23423.28,
     "request_failures": 0,
-    "ttft_p50_s": 0.003,
-    "ttft_p95_s": 0.0033,
-    "tpot_p50_s": 0.00137,
-    "tpot_p95_s": 0.00139
+    "ttft_p50_s": 0.0029,
+    "ttft_p95_s": 0.00324,
+    "tpot_p50_s": 0.00136,
+    "tpot_p95_s": 0.00141
   },
   "runs": [
     {
-      "job_seconds": 2.9964,
+      "job_seconds": 2.7886,
       "generated_tokens": 65536,
-      "tokens_per_second": 21871.58,
+      "tokens_per_second": 23501.4,
       "request_failures": 0,
-      "ttft_p50_s": 0.00309,
-      "ttft_p95_s": 0.00377,
-      "tpot_p50_s": 0.00145,
-      "tpot_p95_s": 0.00157
+      "ttft_p50_s": 0.00303,
+      "ttft_p95_s": 0.00362,
+      "tpot_p50_s": 0.00135,
+      "tpot_p95_s": 0.00142
     },
     {
-      "job_seconds": 2.8929,
+      "job_seconds": 2.8064,
       "generated_tokens": 65536,
-      "tokens_per_second": 22654.08,
+      "tokens_per_second": 23352.34,
       "request_failures": 0,
-      "ttft_p50_s": 0.00301,
-      "ttft_p95_s": 0.00332,
-      "tpot_p50_s": 0.00138,
-      "tpot_p95_s": 0.0015
+      "ttft_p50_s": 0.00302,
+      "ttft_p95_s": 0.00556,
+      "tpot_p50_s": 0.00136,
+      "tpot_p95_s": 0.00139
     },
     {
-      "job_seconds": 2.9122,
+      "job_seconds": 2.7613,
       "generated_tokens": 65536,
-      "tokens_per_second": 22503.95,
+      "tokens_per_second": 23733.75,
       "request_failures": 0,
-      "ttft_p50_s": 0.00326,
-      "ttft_p95_s": 0.00382,
-      "tpot_p50_s": 0.00142,
-      "tpot_p95_s": 0.00148
+      "ttft_p50_s": 0.00286,
+      "ttft_p95_s": 0.0031,
+      "tpot_p50_s": 0.00134,
+      "tpot_p95_s": 0.00137
     }
   ],
   "score": {
-    "median_job_seconds": 2.9122,
-    "min_job_seconds": 2.8929,
-    "max_job_seconds": 2.9964,
-    "stability": 0.03554,
-    "units_per_hour": 1236.179,
+    "median_job_seconds": 2.7886,
+    "min_job_seconds": 2.7613,
+    "max_job_seconds": 2.8064,
+    "stability": 0.01617,
+    "units_per_hour": 1290.97,
     "mean_power_watts": null,
     "units_per_electric_kwh": null
   },
@@ -110,8 +127,8 @@
   ],
   "prompt_set_sha256": "b7ba17276b1f7346dd30db000416bae68c34c23757045ded93b31ff86303c534",
   "lock_sha256": "bb601596a03798d9eca09c88ff8a0a3fbe21c2ad6b8b4105cd9e93f511f7d0c5",
-  "started_at": "2026-09-26T07:25:38Z",
-  "finished_at": "2026-09-26T07:25:50Z",
-  "report_sha256": "c05b576e4d2c72e7f80be74f54fdb264f1bc56dddadbaed2dcf13236079a1b15",
+  "started_at": "2026-09-26T18:40:25Z",
+  "finished_at": "2026-09-26T18:40:36Z",
+  "report_sha256": "5c755313facc862eb9be7be5dcec511960bed9308d561a367500f6a4683f734e",
   "signature": null
 }

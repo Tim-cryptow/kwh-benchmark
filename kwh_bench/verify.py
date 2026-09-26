@@ -91,6 +91,9 @@ def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]
         c = report["canary"]
         if c is None or not c["passed"]:
             problems.append("certified report without passing canary")
+        pf = report.get("preflight")
+        if pf and pf.get("available") and pf.get("idle") is False:
+            problems.append("certified report with a non-idle pre-flight (host contention)")
         if report["certified_reasons"]:
             problems.append("certified=true but certified_reasons is non-empty")
 

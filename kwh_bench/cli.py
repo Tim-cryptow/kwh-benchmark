@@ -13,9 +13,10 @@ import click
 from . import __version__
 from . import reference as ref
 from .engines import LlamaCppEngine, MockEngine, VLLMEngine
+from .hardware import HostContentionError, probe
 from .lockfile import LOCK_PATH, load_lock
 from .prompts import canonical_prompts, sha256_text, to_jsonl, write_prompt_file
-from .report import summarize, write_report
+from .report import now_iso, summarize, write_report
 from .runner import lock_reference, run_benchmark
 from .verify import verify_report
 
@@ -47,7 +48,8 @@ def main():
 @click.option("--prompt-file", type=click.Path(path_type=Path, exists=True), default=None, help="Use this prompt file (must match the pinned hash).")
 @click.option("--mock-step-ms", type=float, default=0.5, hidden=True)
 @click.option("--concurrency", type=int, default=ref.CONCURRENCY, hidden=True, help="Override for experiments only; any value but the spec's disqualifies the result.")
-def run(engine_name, runs, out, server_url, docker_image, revision, port, gguf, hf_cache, engine_log, prompt_file, mock_step_ms, concurrency):
+@click.option("--ignore-preflight", is_flag=True, help="Run even if the GPU is not idle (result is uncertified: host_contention).")
+def run(engine_name, runs, out, server_url, docker_image, revision, port, gguf, hf_cache, engine_log, prompt_file, mock_step_ms, concurrency, ignore_preflight):
     """Run the Grade I benchmark and write a report."""
     lock = load_lock()
     if engine_name == "vllm":
@@ -68,7 +70,16 @@ def run(engine_name, runs, out, server_url, docker_image, revision, port, gguf, 
         _log(f"WARNING: concurrency {concurrency} != spec {ref.CONCURRENCY}; result cannot be certified")
 
     try:
-        report = asyncio.run(run_benchmark(engine, measured_jobs=runs, prompt_file=prompt_file, lock=lock, log=_log, concurrency=concurrency))
+        report = asyncio.run(run_benchmark(engine, measured_jobs=runs, prompt_file=prompt_file, lock=lock, log=_log,
+                                           concurrency=concurrency, ignore_preflight=ignore_preflight))
+    except HostContentionError as e:
+        _log(f"refusing to run: {e}")
+        _log("another process is using this GPU; stop it or move to another host. --ignore-preflight runs anyway (uncertified).")
+        evidence = REPO_ROOT / "results" / "uncertified" / f"{now_iso().replace(':', '').replace('-', '')}-preflight-failed.json"
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        evidence.write_text(json.dumps({"kind": "preflight-failed", "preflight": e.preflight, "hardware": probe(), "at": now_iso()}, indent=2) + "\n")
+        _log(f"evidence: {evidence}")
+        sys.exit(3)
     except Exception as e:  # noqa: BLE001
         _log(f"error: {type(e).__name__}: {e}")
         sys.exit(2)

@@ -2,6 +2,8 @@
 
 ## 1.0.0-rc.2 — 2026-09-26
 
+- Pre-flight check (SPEC.md §6 step 0): `kwh-bench run` samples the GPU for 5 s before launching the engine and refuses with `host_contention` unless ≥ 95% of VRAM is free and mean utilization is ≤ 5%. `--ignore-preflight` runs anyway, uncertified. Reports carry the `preflight` sample; `verify` rejects certified reports whose pre-flight was not idle. Prompted by a RunPod community RTX 5090 that arrived with a foreign process holding 5.7 GB at 100%/400 W (see results/README.md, Field notes).
+
 - `kwh-bench canary`: score the locked canaries against a running server (`--server-url`) or a launched model (`--model`, for negative controls) without a benchmark run; writes `results/canary/<label>.json` and, with `--append`, a row in `results/canary-calibration.md`. Records whether the outcome matched expectation (reference model must pass, anything else must fail).
 - vLLM engine reports the model the server actually serves (`/v1/models`), so an attached server serving the wrong model is recorded as such.
 

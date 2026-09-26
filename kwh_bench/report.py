@@ -63,8 +63,11 @@ def evaluate_canary(scores: Dict[int, Optional[float]], lock: Lock) -> Optional[
 
 # --- certification ------------------------------------------------------
 
-def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict, canary: Optional[dict], lock: Lock) -> List[str]:
+def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict, canary: Optional[dict], lock: Lock,
+                          preflight: Optional[dict] = None) -> List[str]:
     reasons: List[str] = []
+    if preflight and preflight.get("available") and preflight.get("idle") is False:
+        reasons.extend(preflight.get("reasons") or ["host_contention: GPU not idle before launch"])
     if not lock.is_locked:
         reasons.append("unlocked: reference/lock.json is incomplete (spec is a release candidate)")
     if engine.name not in ref.CERTIFIED_ENGINES:
@@ -115,6 +118,7 @@ def build_report(
     prompt_set_sha256: str,
     started_at: str,
     canary_scores: Optional[Dict[int, Optional[float]]] = None,
+    preflight: Optional[dict] = None,
     finished_at: Optional[str] = None,
 ) -> dict:
     score = score_runs([r.job_seconds for r in runs])
@@ -124,7 +128,7 @@ def build_report(
         round(score["units_per_hour"] / (mean_w / 1000.0), 2) if (mean_w and score.get("units_per_hour")) else None
     )
     canary = evaluate_canary(canary_scores or {}, lock) if engine.name in ref.CERTIFIED_ENGINES else None
-    reasons = certification_reasons(engine, runs, score, canary, lock)
+    reasons = certification_reasons(engine, runs, score, canary, lock, preflight)
     report = {
         "spec": {"series": ref.SERIES, "spec_version": ref.SPEC_VERSION, "bench_version": __version__},
         "job": {
@@ -147,6 +151,7 @@ def build_report(
             "extra": {k: v for k, v in engine.extra.items() if v is not None},
         },
         "hardware": hardware,
+        "preflight": preflight,
         "warmup": warmup.to_dict(),
         "runs": [r.to_dict() for r in runs],
         "score": score,

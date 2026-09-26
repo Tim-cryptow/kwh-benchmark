@@ -18,3 +18,7 @@ Target for 1.0.0: at least three consumer cards (RTX 3090, RTX 4090, RTX 5090). 
 - **stability** is `(max − min) / median` over the three measured runs; certification requires ≤ 0.10.
 - **units per electric kWh** is `units/hour ÷ (mean W / 1000)`: how many units one kilowatt-hour of electricity buys on that rig. The host dashboard puts this next to the host's power tariff.
 - **TPOT p50** is median time per output token at concurrency 32, i.e. the per-stream speed a buyer sees (~43 tok/s here).
+
+## Field notes
+
+- **2026-09-26, RunPod Community RTX 5090 (pod `gruz0z76gmyc8y`).** Deployed for the second table row. Before anything of ours ran, `nvidia-smi` showed 5,695 MiB in use, 100% utilization and 400 W, sustained, with no process visible inside the container: another tenant or a leftover workload on the host. vLLM refused to start (25.3 of 31.4 GiB free, 28.2 needed). The pod was stopped after ten minutes. This is the case the primer's liveness and slashing design exists for, and it is why `kwh-bench run` now samples the GPU before launching and refuses with `host_contention` (SPEC.md §6 step 0). The evidence file for a refused run lands in `results/uncertified/<timestamp>-preflight-failed.json`.

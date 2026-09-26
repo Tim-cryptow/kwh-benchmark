@@ -105,3 +105,12 @@ UNCERTIFIED_REASONS = {
     "llamacpp": "engine llama.cpp/Q8_0 is not in the certified set for I-1 (weight-only 8-bit)",
     "mock": "mock engine performs no inference",
 }
+
+# --- Pre-flight (SPEC.md §6 step 0) --------------------------------------
+# The GPU must be idle before the engine launches. A foreign process holding
+# VRAM or driving the GPU makes the rate meaningless and, in practice, stops
+# the certified engine from allocating its 0.90 share at all.
+PREFLIGHT_SECONDS = 5.0
+PREFLIGHT_HZ = 2.0
+PREFLIGHT_MAX_UTIL_PCT = 5.0             # mean GPU utilization over the window
+PREFLIGHT_MIN_FREE_FRACTION = 0.95       # of total VRAM, at the worst sample

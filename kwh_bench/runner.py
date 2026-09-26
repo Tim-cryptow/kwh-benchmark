@@ -11,7 +11,7 @@ from typing import Callable, List, Optional
 
 from . import reference as ref
 from .engines.base import Engine
-from .hardware import PowerSampler, probe
+from .hardware import HostContentionError, PowerSampler, preflight_gpu, probe
 from .load import JobResult, PreparedPrompt, prepare_prompts, run_job
 from .lockfile import Canary, Lock, default_canary_ids, load_lock, save_lock
 from .prompts import canonical_prompts, load_prompt_file, sha256_text, to_jsonl
@@ -33,6 +33,7 @@ async def run_benchmark(
     lock: Optional[Lock] = None,
     log: Log = lambda s: print(s, file=sys.stderr),
     concurrency: int = ref.CONCURRENCY,
+    ignore_preflight: bool = False,
 ) -> dict:
     lock = lock or load_lock()
     started_at = now_iso()
@@ -41,6 +42,17 @@ async def run_benchmark(
 
     log("probing hardware")
     hardware = probe()
+
+    # SPEC.md §6 step 0: the GPU must be idle before anything is launched.
+    preflight = preflight_gpu(seconds=ref.PREFLIGHT_SECONDS, hz=ref.PREFLIGHT_HZ,
+                              max_util_pct=ref.PREFLIGHT_MAX_UTIL_PCT, min_free_fraction=ref.PREFLIGHT_MIN_FREE_FRACTION)
+    if preflight["available"]:
+        log(f"pre-flight: {preflight['free_fraction_min']:.0%} VRAM free, GPU {preflight['util_pct_mean']}% busy, "
+            f"{preflight['power_w_mean']} W -> {'idle' if preflight['idle'] else 'NOT IDLE'}")
+        if not preflight["idle"] and not ignore_preflight:
+            raise HostContentionError(preflight)
+    else:
+        log("pre-flight: nvidia-smi unavailable, skipping")
 
     log(f"starting engine {engine.name}")
     async with engine:
@@ -81,6 +93,7 @@ async def run_benchmark(
         prompt_set_sha256=prompt_hash,
         started_at=started_at,
         canary_scores=canary_scores,
+        preflight=preflight,
     )
 
 

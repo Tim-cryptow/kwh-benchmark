@@ -434,6 +434,79 @@
         "object",
         "null"
       ]
+    },
+    "preflight": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "available",
+        "idle",
+        "reasons"
+      ],
+      "properties": {
+        "available": {
+          "type": "boolean"
+        },
+        "seconds": {
+          "type": "number"
+        },
+        "samples": {
+          "type": "integer"
+        },
+        "idle": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mem_total_mib": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "mem_used_mib_max": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "free_fraction_min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "util_pct_mean": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "util_pct_max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "power_w_mean": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "thresholds": {
+          "type": "object"
+        }
+      }
     }
   },
   "$defs": {

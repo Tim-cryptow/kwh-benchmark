@@ -98,6 +98,7 @@ The Docker path uses the official `vllm/vllm-openai` image at the pinned tag; `s
 
 `kwh-bench run` performs, in order:
 
+0. **Pre-flight.** Sample the GPU for 5 seconds before launching anything. The GPU must be idle: at least 95% of VRAM free at every sample and mean utilization at or below 5%. Otherwise the run is refused with reason `host_contention` and nothing is launched (`--ignore-preflight` runs anyway; the result is uncertified). A rig with another process on the GPU cannot produce a rate that means anything, and in practice the certified engine cannot allocate its 0.90 share on it.
 1. **Probe** the hardware and software environment (§8).
 2. **Launch** the engine with the pinned configuration (or attach, uncertified).
 3. **Prepare** the prompt set: verify `PROMPT_SET_SHA256`, tokenize, truncate to 512 IDs.
@@ -111,6 +112,7 @@ The Docker path uses the official `vllm/vllm-openai` image at the pinned tag; `s
 
 - `job_seconds[i]` = wall time of measured run *i*.
 - **`units_per_hour = 3600 / median(job_seconds)`**. The median is robust to one bad run; the mean is not.
+- A certified result requires the pre-flight to have been idle (step 0) when the platform can measure it.
 - `stability = (max − min) / median` over measured runs. A certified result requires `stability ≤ 0.10`. Above that, the result is reported with `certified: false` and reason `unstable`; the host should fix cooling or background load and rerun.
 - Per-request latency is recorded per run: time to first token (TTFT) and time per output token (TPOT, i.e. `(last_token_time − first_token_time) / 255`), with p50 and p95 across the 256 requests. These are reported for bucketing and routing; I-1 imposes no latency SLO on certification. A later spec version may.
 - `units_per_electric_kwh = units_per_hour / (mean_power_watts / 1000)` when power sampling succeeded; otherwise `null`. This is the number the host dashboard puts next to the host's electricity price.
@@ -140,6 +142,7 @@ Canary scoring happens outside the timed jobs and adds no work to the reference 
 | `job` | the §3 parameters as actually executed (requests, prompt tokens, generated tokens, concurrency) |
 | `engine` | name, version, certified flag, launch mode, full launch args, model id + revision, uncertified reason if any |
 | `hardware` | GPU name, VRAM, driver, CUDA version, PCIe generation/width where available, CPU model, RAM, OS, kernel, Python |
+| `preflight` | the step-0 sample: VRAM free fraction, mean/max utilization, mean power, `idle` verdict and reasons |
 | `runs` | per measured run: job_seconds, tokens_per_second, TTFT p50/p95, TPOT p50/p95, request failures |
 | `score` | `units_per_hour`, `median_job_seconds`, `stability`, `units_per_electric_kwh`, `mean_power_watts` |
 | `canary` | passed flag, per-canary host/reference mean log-probabilities and deltas, or `null` |

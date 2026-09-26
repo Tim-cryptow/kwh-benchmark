@@ -112,6 +112,72 @@ def _float(s: str) -> Optional[float]:
         return None
 
 
+class HostContentionError(RuntimeError):
+    """The GPU is not idle: another process is using it (SPEC.md §6 step 0)."""
+
+    def __init__(self, preflight: dict):
+        self.preflight = preflight
+        super().__init__("; ".join(preflight.get("reasons") or ["GPU not idle"]))
+
+
+def preflight_gpu(seconds: float = 5.0, hz: float = 2.0, gpu_index: Optional[int] = None,
+                  max_util_pct: float = 5.0, min_free_fraction: float = 0.95) -> dict:
+    """Sample the GPU for `seconds` before anything is launched and decide whether it is idle.
+
+    Returns a dict that goes into the report verbatim. `idle` is False when any
+    sample shows foreign VRAM use above the threshold or the mean utilization
+    is above `max_util_pct`. Without nvidia-smi the check is `available: False`
+    and `idle: None`; certification then depends on the platform's own probe.
+    """
+    out = {"available": False, "seconds": seconds, "samples": 0, "idle": None, "reasons": [],
+           "mem_total_mib": None, "mem_used_mib_max": None, "free_fraction_min": None,
+           "util_pct_mean": None, "util_pct_max": None, "power_w_mean": None,
+           "thresholds": {"max_util_pct": max_util_pct, "min_free_fraction": min_free_fraction}}
+    if not shutil.which("nvidia-smi"):
+        return out
+    argv = ["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu,power.draw", "--format=csv,noheader,nounits"]
+    if gpu_index is not None:
+        argv += ["-i", str(gpu_index)]
+    used, total, util, power = [], [], [], []
+    n = max(1, int(seconds * hz))
+    for i in range(n):
+        line = _run(argv, timeout=3.0)
+        if line:
+            first = line.splitlines()[0]
+            vals = [v.strip() for v in first.split(",")]
+            if len(vals) == 4:
+                u, t, g, w = (_float(v) for v in vals)
+                if u is not None and t:
+                    used.append(u); total.append(t)
+                if g is not None:
+                    util.append(g)
+                if w is not None:
+                    power.append(w)
+        if i < n - 1:
+            time.sleep(1.0 / hz)
+    if not total:
+        return out
+    out.update({
+        "available": True,
+        "samples": len(total),
+        "mem_total_mib": int(total[0]),
+        "mem_used_mib_max": int(max(used)),
+        "free_fraction_min": round(min(1.0 - u / t for u, t in zip(used, total)), 4),
+        "util_pct_mean": round(sum(util) / len(util), 1) if util else None,
+        "util_pct_max": round(max(util), 1) if util else None,
+        "power_w_mean": round(sum(power) / len(power), 1) if power else None,
+    })
+    reasons = []
+    if out["free_fraction_min"] < min_free_fraction:
+        reasons.append(f"host_contention: only {out['free_fraction_min']:.0%} of VRAM free before launch "
+                       f"({out['mem_used_mib_max']} MiB in use by other processes), need {min_free_fraction:.0%}")
+    if out["util_pct_mean"] is not None and out["util_pct_mean"] > max_util_pct:
+        reasons.append(f"host_contention: GPU {out['util_pct_mean']:.0f}% busy before launch, need <= {max_util_pct:.0f}%")
+    out["reasons"] = reasons
+    out["idle"] = not reasons
+    return out
+
+
 @dataclass
 class PowerSample:
     t: float
