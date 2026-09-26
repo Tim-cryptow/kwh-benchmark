@@ -37,6 +37,10 @@ kwh-bench run --engine llamacpp --gguf ./Meta-Llama-3.1-8B-Instruct-Q8_0.gguf
 kwh-bench run --engine mock                                     # no GPU, CI
 
 kwh-bench verify results/<report>.json               # what the platform runs on ingest
+
+# Canary calibration (SPEC.md §7): score the locked canaries without a full run
+kwh-bench canary --model meta-llama/Llama-3.1-8B-Instruct --label llama31-8b-bf16 --append   # must FAIL
+kwh-bench canary --server-url http://127.0.0.1:8000 --label my-rig                             # must PASS on the reference model
 ```
 
 The checkpoint is gated behind the Llama 3.1 Community License; log in with `huggingface-cli login` (or set `HF_TOKEN`) before the first run. The repo redistributes no weights.

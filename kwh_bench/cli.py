@@ -138,6 +138,76 @@ def lock(model_dir, revision, docker_image, server_url, port, engine_log, out):
 
 
 @main.command()
+@click.option("--server-url", default=None, help="Score against a running OpenAI-compatible vLLM server.")
+@click.option("--model", "model_id", default=None, help="Launch vLLM with this model instead (a negative control, e.g. an FP16 or 4-bit Llama 3.1 8B).")
+@click.option("--revision", default=None)
+@click.option("--docker", "docker_image", default=None)
+@click.option("--port", type=int, default=8000)
+@click.option("--label", default=None, help="Name for the record (default: model id).")
+@click.option("--engine-log", type=click.Path(path_type=Path), default=None)
+@click.option("--out", type=click.Path(path_type=Path), default=None, help="Record path (default results/canary/<label>.json).")
+@click.option("--append", "append_md", is_flag=True, help="Append the row to results/canary-calibration.md.")
+def canary(server_url, model_id, revision, docker_image, port, label, engine_log, out, append_md):
+    """Score the locked canaries against a server or model without a benchmark run (SPEC.md §7 calibration)."""
+    from .runner import calibration_row, run_canary
+    lock = load_lock()
+    if not lock.is_locked:
+        _log("reference/lock.json is incomplete; run `kwh-bench lock` first")
+        sys.exit(2)
+    if server_url and model_id:
+        _log("use either --server-url or --model, not both")
+        sys.exit(2)
+    engine = VLLMEngine(
+        model=model_id or ref.MODEL_ID,
+        revision=revision or (lock.model_revision if not model_id else None),
+        server_url=server_url,
+        docker_image=docker_image,
+        port=port,
+        log_path=str(engine_log) if engine_log else None,
+    )
+    try:
+        rec = asyncio.run(run_canary(engine, lock=lock, label=label or "", log=_log))
+    except Exception as e:  # noqa: BLE001
+        _log(f"error: {type(e).__name__}: {e}")
+        sys.exit(2)
+    c = rec["canary"]
+    for r in c["results"]:
+        d = "n/a" if r["delta"] is None else f"{r['delta']:.4f}"
+        click.echo(f"  canary {r['prompt_id']:>3}: host {r['mean_logprob']}  ref {r['reference_mean_logprob']}  delta {d}  {'pass' if r['pass'] else 'FAIL'}")
+    expect = "pass" if rec["is_reference_model"] else "fail (control)"
+    click.echo(f"canary: {'PASS' if c['passed'] else 'FAIL'} ({c['passing']}/{len(c['results'])}, tolerance {c['max_delta']} nats)  expected: {expect}")
+    if c["passed"] != rec["is_reference_model"]:
+        click.echo("UNEXPECTED outcome: revisit CANARY_MAX_LOGPROB_DELTA (SPEC.md §7).")
+    safe = "".join(ch if ch.isalnum() or ch in "-._" else "-" for ch in rec["label"]).strip("-")
+    out = out or (REPO_ROOT / "results" / "canary" / f"{safe}.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(rec, indent=2) + "\n", encoding="utf-8")
+    row = calibration_row(rec)
+    click.echo(row)
+    if append_md:
+        _append_calibration_row(REPO_ROOT / "results" / "canary-calibration.md", row)
+    click.echo(f"record: {out}", err=True)
+
+
+def _append_calibration_row(md: Path, row: str) -> None:
+    """Insert the row at the end of the first Markdown table in the calibration file."""
+    lines = md.read_text(encoding="utf-8").splitlines()
+    end = None
+    in_table = False
+    for i, line in enumerate(lines):
+        if line.startswith("|"):
+            in_table = True
+            end = i
+        elif in_table:
+            break
+    if end is None:
+        lines.append(row)
+    else:
+        lines.insert(end + 1, row)
+    md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@main.command()
 def spec():
     """Print the pinned I-1 constants."""
     d = {k: getattr(ref, k) for k in dir(ref) if k.isupper()}

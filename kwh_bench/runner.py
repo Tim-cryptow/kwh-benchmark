@@ -184,3 +184,66 @@ async def lock_reference(
     digest = save_lock(lock, out) if out else save_lock(lock)
     log(f"wrote lock ({'complete' if lock.is_locked else 'INCOMPLETE'}) sha256={digest}")
     return lock
+
+
+# --- canary-only run (calibration) ---------------------------------------
+
+async def run_canary(engine: Engine, lock: Optional[Lock] = None, label: str = "", log: Log = lambda s: print(s, file=sys.stderr)) -> dict:
+    """Score the locked canaries against `engine` without a benchmark run.
+
+    Used to calibrate SPEC.md §7: run it against the reference model on other
+    GPU architectures (must pass) and against wrong models — FP16, 4-bit, a
+    different model — which must fail. Writes nothing itself; the CLI does.
+    """
+    from .lockfile import lock_sha256
+    from .report import evaluate_canary
+
+    lock = lock or load_lock()
+    if not lock.is_locked:
+        raise ValueError("reference/lock.json is incomplete; nothing to score against")
+    prompts = canonical_prompts()
+    by_id = {p.id: p for p in prompts}
+    ids = sorted(lock.canary_ids())
+    started = now_iso()
+    hardware = probe()
+    async with engine:
+        info = await engine.info()
+        log(f"engine {info.name} {info.version or ''} model={info.model_id} mode={info.launch_mode}")
+        prepared = await prepare_prompts(engine, [by_id[i] for i in ids])
+        scores = await score_canaries(engine, prepared, lock, log)
+    canary = evaluate_canary(scores, lock)
+    return {
+        "kind": "canary-calibration",
+        "label": label or info.model_id,
+        "spec": {"series": ref.SERIES, "spec_version": ref.SPEC_VERSION},
+        "engine": {"name": info.name, "version": info.version, "model_id": info.model_id,
+                   "model_revision": info.model_revision, "launch_mode": info.launch_mode,
+                   "launch_args": list(info.launch_args)},
+        "is_reference_model": info.model_id in (ref.MODEL_ID, *ref.MODEL_ALIASES),
+        "hardware": hardware,
+        "lock_sha256": lock_sha256(lock),
+        "canary": canary,
+        "started_at": started,
+        "finished_at": now_iso(),
+    }
+
+
+def calibration_row(rec: dict) -> str:
+    """One Markdown table row for results/canary-calibration.md."""
+    gpu = (rec["hardware"].get("gpus") or [{"name": "no GPU"}])[0]
+    cc = gpu.get("compute_capability")
+    arch = f"{gpu['name']}" + (f" / sm{cc.replace('.', '')}" if cc else "")
+    c = rec["canary"]
+    deltas = [r["delta"] for r in c["results"]]
+    known = [d for d in deltas if d is not None]
+    if known:
+        span = f"{min(known):.4f}–{max(known):.4f}" if min(known) != max(known) else f"{known[0]:.4f} ×{len(known)}"
+    else:
+        span = "n/a"
+    model = rec["engine"]["model_id"] + ("" if rec["is_reference_model"] else " (control)")
+    expect = "pass" if rec["is_reference_model"] else "fail"
+    verdict = "PASS" if c["passed"] else "FAIL"
+    ok = "as expected" if (c["passed"] == rec["is_reference_model"]) else "UNEXPECTED"
+    date = rec["finished_at"][:10]
+    return (f"| {date} | {arch} | {rec['engine']['name']} {rec['engine']['version'] or ''} | {model} | {span} "
+            f"| {c['passing']}/{len(c['results'])} {verdict} | expected {expect}: {ok} |")

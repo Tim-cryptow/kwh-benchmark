@@ -116,7 +116,8 @@ class VLLMEngine(Engine):
         return EngineInfo(
             name="vllm",
             version=version,
-            model_id=self.model,
+            # What the server actually serves, not what we expected. Matters for attached servers.
+            model_id=self._served_model or self.model,
             model_revision=self.revision,
             launch_mode=mode,
             launch_args=list(self._launch_argv),
