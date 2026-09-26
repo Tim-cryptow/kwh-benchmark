@@ -120,7 +120,9 @@ async def test_full_mock_run_produces_valid_unverifiable_report(tmp_path, fast_e
     validate(report)
     assert report["certified"] is False
     assert any("mock" in r for r in report["certified_reasons"])
-    assert any("unlocked" in r for r in report["certified_reasons"])
+    # The committed reference/lock.json is complete; an unlocked checkout would add an "unlocked" reason.
+    from kwh_bench.lockfile import load_lock
+    assert load_lock().is_locked == (not any("unlocked" in r for r in report["certified_reasons"]))
     assert report["job"]["generated_tokens_per_job"] == ref.GENERATED_TOKENS_PER_JOB
     assert all(r["generated_tokens"] == ref.GENERATED_TOKENS_PER_JOB for r in report["runs"])
     assert report["report_sha256"] == report_hash(report)

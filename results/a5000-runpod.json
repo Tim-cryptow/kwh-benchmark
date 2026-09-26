@@ -1,0 +1,209 @@
+{
+  "spec": {
+    "series": "I-1",
+    "spec_version": "1.0.0-rc.2",
+    "bench_version": "1.0.0rc2"
+  },
+  "job": {
+    "requests": 256,
+    "prompt_tokens": 512,
+    "generated_tokens": 256,
+    "generated_tokens_per_job": 65536,
+    "concurrency": 32,
+    "sampling": {
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "seed": 0,
+      "max_tokens": 256,
+      "min_tokens": 256,
+      "ignore_eos": true
+    }
+  },
+  "engine": {
+    "name": "vllm",
+    "version": "0.30.0",
+    "model_id": "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8",
+    "model_revision": "024e24cbe4153670f747383ea3265d0fb197c727",
+    "launch_mode": "subprocess",
+    "launch_args": [
+      "/usr/local/bin/vllm",
+      "serve",
+      "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8",
+      "--dtype",
+      "auto",
+      "--max-model-len",
+      "1024",
+      "--max-num-seqs",
+      "32",
+      "--no-enable-prefix-caching",
+      "--seed",
+      "0",
+      "--gpu-memory-utilization",
+      "0.90",
+      "--port",
+      "8000",
+      "--host",
+      "0.0.0.0",
+      "--revision",
+      "024e24cbe4153670f747383ea3265d0fb197c727"
+    ],
+    "server_url": "http://127.0.0.1:8000",
+    "certified_engine": true,
+    "extra": {
+      "served_model": "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+    }
+  },
+  "hardware": {
+    "gpus": [
+      {
+        "name": "NVIDIA RTX A5000",
+        "vram_mib": 24564,
+        "driver_version": "580.159.04",
+        "pcie_gen": 4,
+        "pcie_width": 16,
+        "power_limit_w": 230.0,
+        "uuid": "GPU-fb7f39ea-e8fb-2253-e130-f7996228f072",
+        "compute_capability": "8.6"
+      }
+    ],
+    "cuda_version": "13.0",
+    "cpu_model": "Intel(R) Xeon(R) Gold 6342 CPU @ 2.80GHz",
+    "cpu_cores_physical": 48,
+    "cpu_threads": 96,
+    "ram_gib": 503.5,
+    "os": "Linux 6.8.0-134-generic",
+    "platform": "Linux-6.8.0-134-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "kwh_bench": "1.0.0rc2",
+    "hostname_hash": "8fb0c4af0f80349f"
+  },
+  "warmup": {
+    "job_seconds": 54.7866,
+    "generated_tokens": 65536,
+    "tokens_per_second": 1196.2,
+    "request_failures": 0,
+    "ttft_p50_s": 0.94754,
+    "ttft_p95_s": 1.32178,
+    "tpot_p50_s": 0.02319,
+    "tpot_p95_s": 0.02552
+  },
+  "runs": [
+    {
+      "job_seconds": 55.1309,
+      "generated_tokens": 65536,
+      "tokens_per_second": 1188.73,
+      "request_failures": 0,
+      "ttft_p50_s": 0.96583,
+      "ttft_p95_s": 1.39276,
+      "tpot_p50_s": 0.02315,
+      "tpot_p95_s": 0.02552
+    },
+    {
+      "job_seconds": 55.3023,
+      "generated_tokens": 65536,
+      "tokens_per_second": 1185.05,
+      "request_failures": 0,
+      "ttft_p50_s": 0.97698,
+      "ttft_p95_s": 1.38363,
+      "tpot_p50_s": 0.02318,
+      "tpot_p95_s": 0.02559
+    },
+    {
+      "job_seconds": 55.3906,
+      "generated_tokens": 65536,
+      "tokens_per_second": 1183.16,
+      "request_failures": 0,
+      "ttft_p50_s": 0.98257,
+      "ttft_p95_s": 1.398,
+      "tpot_p50_s": 0.02318,
+      "tpot_p95_s": 0.02559
+    }
+  ],
+  "score": {
+    "median_job_seconds": 55.3023,
+    "min_job_seconds": 55.1309,
+    "max_job_seconds": 55.3906,
+    "stability": 0.0047,
+    "units_per_hour": 65.097,
+    "mean_power_watts": 228.7,
+    "units_per_electric_kwh": 284.64
+  },
+  "canary": {
+    "passed": true,
+    "passing": 8,
+    "required": 6,
+    "max_delta": 0.1,
+    "results": [
+      {
+        "prompt_id": 16,
+        "mean_logprob": -1.16552,
+        "reference_mean_logprob": -1.16552,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 48,
+        "mean_logprob": -1.11244,
+        "reference_mean_logprob": -1.11244,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 80,
+        "mean_logprob": -1.34789,
+        "reference_mean_logprob": -1.34789,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 112,
+        "mean_logprob": -1.24528,
+        "reference_mean_logprob": -1.24528,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 144,
+        "mean_logprob": -1.16678,
+        "reference_mean_logprob": -1.16678,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 176,
+        "mean_logprob": -1.17662,
+        "reference_mean_logprob": -1.17662,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 208,
+        "mean_logprob": -1.5939,
+        "reference_mean_logprob": -1.5939,
+        "delta": 0.0,
+        "pass": true
+      },
+      {
+        "prompt_id": 240,
+        "mean_logprob": -1.60078,
+        "reference_mean_logprob": -1.60078,
+        "delta": 0.0,
+        "pass": true
+      }
+    ]
+  },
+  "power": {
+    "available": true,
+    "samples": 159,
+    "mean_watts": 228.7,
+    "energy_wh": 10.51
+  },
+  "certified": true,
+  "certified_reasons": [],
+  "prompt_set_sha256": "b7ba17276b1f7346dd30db000416bae68c34c23757045ded93b31ff86303c534",
+  "lock_sha256": "bb601596a03798d9eca09c88ff8a0a3fbe21c2ad6b8b4105cd9e93f511f7d0c5",
+  "started_at": "2026-09-26T07:12:12Z",
+  "finished_at": "2026-09-26T07:16:32Z",
+  "report_sha256": "e150018cee7f7960de11f3b8c4fc694244a44686c7dc34bf009d8ac418e92450",
+  "signature": null
+}

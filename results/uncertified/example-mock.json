@@ -47,53 +47,53 @@
     "hostname_hash": "5bce98f73f3ed0c8"
   },
   "warmup": {
-    "job_seconds": 2.8966,
+    "job_seconds": 2.8219,
     "generated_tokens": 65536,
-    "tokens_per_second": 22625.15,
+    "tokens_per_second": 23224.07,
     "request_failures": 0,
-    "ttft_p50_s": 0.00306,
-    "ttft_p95_s": 0.00385,
-    "tpot_p50_s": 0.0014,
-    "tpot_p95_s": 0.00147
+    "ttft_p50_s": 0.003,
+    "ttft_p95_s": 0.0033,
+    "tpot_p50_s": 0.00137,
+    "tpot_p95_s": 0.00139
   },
   "runs": [
     {
-      "job_seconds": 2.903,
+      "job_seconds": 2.9964,
       "generated_tokens": 65536,
-      "tokens_per_second": 22575.27,
+      "tokens_per_second": 21871.58,
       "request_failures": 0,
       "ttft_p50_s": 0.00309,
-      "ttft_p95_s": 0.0045,
-      "tpot_p50_s": 0.00141,
-      "tpot_p95_s": 0.00147
+      "ttft_p95_s": 0.00377,
+      "tpot_p50_s": 0.00145,
+      "tpot_p95_s": 0.00157
     },
     {
-      "job_seconds": 2.8427,
+      "job_seconds": 2.8929,
       "generated_tokens": 65536,
-      "tokens_per_second": 23054.14,
+      "tokens_per_second": 22654.08,
       "request_failures": 0,
       "ttft_p50_s": 0.00301,
-      "ttft_p95_s": 0.00356,
-      "tpot_p50_s": 0.00137,
-      "tpot_p95_s": 0.00145
+      "ttft_p95_s": 0.00332,
+      "tpot_p50_s": 0.00138,
+      "tpot_p95_s": 0.0015
     },
     {
-      "job_seconds": 2.8332,
+      "job_seconds": 2.9122,
       "generated_tokens": 65536,
-      "tokens_per_second": 23131.44,
+      "tokens_per_second": 22503.95,
       "request_failures": 0,
-      "ttft_p50_s": 0.003,
-      "ttft_p95_s": 0.00326,
-      "tpot_p50_s": 0.00136,
-      "tpot_p95_s": 0.00143
+      "ttft_p50_s": 0.00326,
+      "ttft_p95_s": 0.00382,
+      "tpot_p50_s": 0.00142,
+      "tpot_p95_s": 0.00148
     }
   ],
   "score": {
-    "median_job_seconds": 2.8427,
-    "min_job_seconds": 2.8332,
-    "max_job_seconds": 2.903,
-    "stability": 0.02455,
-    "units_per_hour": 1266.402,
+    "median_job_seconds": 2.9122,
+    "min_job_seconds": 2.8929,
+    "max_job_seconds": 2.9964,
+    "stability": 0.03554,
+    "units_per_hour": 1236.179,
     "mean_power_watts": null,
     "units_per_electric_kwh": null
   },
@@ -106,13 +106,12 @@
   },
   "certified": false,
   "certified_reasons": [
-    "unlocked: reference/lock.json is incomplete (spec is a release candidate)",
     "mock engine performs no inference"
   ],
   "prompt_set_sha256": "b7ba17276b1f7346dd30db000416bae68c34c23757045ded93b31ff86303c534",
-  "lock_sha256": null,
-  "started_at": "2026-09-26T06:58:09Z",
-  "finished_at": "2026-09-26T06:58:20Z",
-  "report_sha256": "3cb3da024fb03c47e78972bdcf9eb9e380d6eaed000f710c76152604bb07235e",
+  "lock_sha256": "bb601596a03798d9eca09c88ff8a0a3fbe21c2ad6b8b4105cd9e93f511f7d0c5",
+  "started_at": "2026-09-26T07:25:38Z",
+  "finished_at": "2026-09-26T07:25:50Z",
+  "report_sha256": "c05b576e4d2c72e7f80be74f54fdb264f1bc56dddadbaed2dcf13236079a1b15",
   "signature": null
 }
