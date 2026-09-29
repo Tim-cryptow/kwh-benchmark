@@ -74,15 +74,47 @@ def test_canary_evaluation_logprob_delta():
     lock = _locked(ref_lp=-1.0)
     assert lock.is_locked
     scores = {i: -1.0 for i in range(ref.CANARY_COUNT)}
-    scores[0] = -1.0 + 0.03            # numerical noise: passes
-    scores[1] = -1.0 - 0.09            # inside tolerance: passes
+    scores[0] = -1.0 + 0.02            # numerical noise: passes
+    scores[1] = -1.0 - 0.045           # inside tolerance: passes
     scores[2] = -1.6                   # different model/quant: fails
     scores[3] = None                   # scoring failed: fails
     c = evaluate_canary(scores, lock)
     assert c["passing"] == 6 and c["passed"] is True
+    assert c["max_delta"] == ref.CANARY_MAX_LOGPROB_DELTA == 0.05
     assert c["results"][2]["pass"] is False and c["results"][3]["delta"] is None
     scores[4] = -0.5                   # a third failure -> below 6/8
     assert evaluate_canary(scores, lock)["passed"] is False
+
+
+def test_awq_int4_control_fails_at_current_tolerance():
+    """The 4-bit control measured on the 4090 (results/canary/) cleared rc.2's 0.10 on 5/8; it must fail now."""
+    lock = _locked(ref_lp=-1.0)
+    awq_deltas = [0.03582, 0.094, 0.05838, 0.09849, 0.05519, 0.14166, 0.16482, 0.21873]
+    scores = {i: -1.0 - d for i, d in enumerate(awq_deltas)}
+    c = evaluate_canary(scores, lock)
+    assert c["passed"] is False and c["passing"] == 1
+
+
+def test_verify_rejudges_canary_under_current_tolerance(tmp_path):
+    """A report whose canary passed under a looser tolerance is rejected if it would not pass now."""
+    from kwh_bench.verify import verify_report
+    report = json.loads((Path(__file__).resolve().parent.parent / "results" / "rtx-4090-runpod.json").read_text())
+    # Real certified report: all deltas are 0.0, passes at any tolerance.
+    p = tmp_path / "ok.json"
+    p.write_text(json.dumps(report))
+    ok, problems = verify_report(p)
+    assert ok, problems
+    # Same report, but pretend it was scored at 0.10 with the AWQ control's deltas and passed 5/8 there.
+    awq = [0.03582, 0.094, 0.05838, 0.09849, 0.05519, 0.14166, 0.16482, 0.21873]
+    for r, d in zip(report["canary"]["results"], awq):
+        r["delta"] = d
+        r["pass"] = d <= 0.10
+    report["canary"]["passing"] = 5
+    report["canary"]["max_delta"] = 0.10
+    report["report_sha256"] = report_hash(report)
+    p.write_text(json.dumps(report))
+    ok, problems = verify_report(p)
+    assert not ok and any("current tolerance" in x for x in problems), problems
 
 
 def test_canary_none_when_unlocked():
@@ -148,7 +180,7 @@ def test_forbidden_flags_block_certification():
                       launch_args=["--model", ref.MODEL_ID, "--max-num-seqs", "32", "--speculative-config", "{}"])
     runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
     score = score_runs([40.0, 40.0, 40.0])
-    canary = {"passed": True, "passing": 8, "required": 6, "max_delta": 0.1, "results": []}
+    canary = {"passed": True, "passing": 8, "required": 6, "max_delta": ref.CANARY_MAX_LOGPROB_DELTA, "results": []}
     reasons = certification_reasons(info, runs, score, canary, lock)
     assert reasons == ["forbidden flag --speculative-config"]
     info.launch_args = ["--model", ref.MODEL_ID, "--max-num-seqs", "32"]

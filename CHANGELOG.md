@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-rc.3 — 2026-09-29
+
+- Canary tolerance tightened from 0.10 to 0.05 nats (SPEC.md §7). Evidence in `results/canary-calibration.md`: the reference model scores the locked continuations at delta 0.0000 on both Ampere (A5000) and Ada (4090), while a 4-bit AWQ quantization of the same weights lands at 0.036–0.219 and cleared 0.10 on five of eight canaries, one short of passing the run. At 0.05 it fails 7/8.
+- `kwh-bench verify` re-judges a certified report's canaries from the stored deltas under the current tolerance, so reports scored under an older, looser tolerance are accepted only if they would pass now. Both certified reports in `results/` do.
+- First consumer-card row: RTX 4090, **100.56 units/hour**, stability 0.0028, 319.4 W mean, 314.8 units per electric kWh, canary 8/8 at delta 0.0000 (`results/rtx-4090-runpod.json`). First cross-architecture datapoint against the Ampere lock.
+- First negative control: `hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4` on the same 4090 (`results/canary/llama31-8b-awq-int4-rtx4090.json`).
+- `scripts/runpod.sh` installs vLLM's cu129 build when the host driver only supports CUDA 12.x (the PyPI wheel needs CUDA 13 and fails at import with *driver too old*); prints the resolved vLLM/torch versions before running. Disk guidance: ≥ 60 GB for the BF16 control.
+- SPEC.md §9 now lists the calibration file among the conditions for tagging 1.0.0.
+
 ## 1.0.0-rc.2 — 2026-09-26
 
 - Pre-flight check (SPEC.md §6 step 0): `kwh-bench run` samples the GPU for 5 s before launching the engine and refuses with `host_contention` unless ≥ 95% of VRAM is free and mean utilization is ≤ 5%. `--ignore-preflight` runs anyway, uncertified. Reports carry the `preflight` sample; `verify` rejects certified reports whose pre-flight was not idle. Prompted by a RunPod community RTX 5090 that arrived with a foreign process holding 5.7 GB at 100%/400 W (see results/README.md, Field notes).

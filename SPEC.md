@@ -1,6 +1,6 @@
 # kWh Grade I Unit Specification
 
-**Spec version:** 1.0.0-rc.2 (becomes 1.0.0 at lock, see §9)
+**Spec version:** 1.0.0-rc.3 (becomes 1.0.0 at lock, see §9)
 **Unit series:** `I-1`
 **Status:** Release candidate. Every number in this document is fixed except the fields listed in §9 (weight hashes, canary expectations, exact engine build), which are filled in by `kwh-bench lock` on the reference node before 1.0.0 is tagged.
 
@@ -125,10 +125,11 @@ The host does **not** have to reproduce the reference node's output. Greedy argm
 
 - 8 of the 256 prompts (IDs listed in `reference/lock.json`) are canaries.
 - At lock time, for each canary, the reference node records the first 32 token IDs of its greedy continuation **and** the mean per-token log-probability it assigns to those 32 tokens under teacher forcing (`prompt_logprobs` on prompt + continuation).
-- At benchmark time, after the measured runs, the host computes the same teacher-forced mean log-probability for the same 32 tokens, one request at a time. A canary **passes** if `|host − reference| ≤ 0.10` nats.
+- At benchmark time, after the measured runs, the host computes the same teacher-forced mean log-probability for the same 32 tokens, one request at a time. A canary **passes** if `|host − reference| ≤ 0.05` nats.
 - The run **passes** the canary check if at least 6 of 8 canaries pass. Failure is reported as `canary: {passed: false}` and the result is `certified: false` with reason `canary`.
+- The report stores every canary's delta. `kwh-bench verify` re-derives pass/fail from the stored deltas under the tolerance in force, so a report scored under an earlier, looser tolerance is accepted only if it would also pass the current one.
 
-Why this works: numerical noise between kernels or architectures moves a mean log-probability over 32 tokens by hundredths of a nat; serving a different model, a different checkpoint or a coarser quantization moves it by tenths or more, because the locked continuation is the reference model's own greedy path and no other model finds those exact tokens as likely. The tolerance (0.10) is calibrated during the rc phase: it must accept every certified card in `results/` and reject an FP16 or 4-bit variant of the base model. Calibration runs are recorded in `results/canary-calibration.md`.
+Why this works: the locked continuation is the reference model's own greedy path, and no other model finds those exact tokens as likely. Serving a different model, a different checkpoint or a coarser quantization moves the mean log-probability over 32 tokens by tenths of a nat; the kernel and architecture differences between certified cards have so far moved it by nothing measurable (0.0000 on Ampere and Ada). The tolerance is calibrated during the rc phase: it must accept every certified card in `results/` and reject an FP16 or 4-bit variant of the base model. rc.2 used 0.10 and a 4-bit AWQ variant cleared it on five of eight canaries; rc.3 uses 0.05, which that variant fails 7/8. Calibration runs are recorded in `results/canary-calibration.md`.
 
 Canary scoring happens outside the timed jobs and adds no work to the reference job. Uncertified engines skip the canary check and report `canary: null`.
 
@@ -164,7 +165,7 @@ Fields that can only be produced with the actual weights and the actual engine b
 - `canaries[]` — the 8 canary prompt IDs, their 32-token reference continuations, and the reference mean log-probability of each.
 - `locked_at`, `locked_on` (hardware of the reference node).
 
-Tagging `v1.0.0` requires a committed `reference/lock.json` with no null fields, and a `results/` table from at least three consumer cards produced by that build. Until then the spec is `1.0.0-rc.N` and every report it produces carries `certified: false` with reason `unlocked`.
+Tagging `v1.0.0` requires a committed `reference/lock.json` with no null fields, a `results/` table from at least three consumer cards produced by that build, and a `results/canary-calibration.md` showing every certified card inside the §7 tolerance and at least one wrong-model control outside it. Until the lock is complete, every report carries `certified: false` with reason `unlocked`. Until the tag, the spec is `1.0.0-rc.N` and the §7 tolerance may still move; reports keep their deltas, so `verify` re-judges them under whatever tolerance is current.
 
 ## 10. What the spec does not decide
 

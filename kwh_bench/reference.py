@@ -9,7 +9,7 @@ from __future__ import annotations
 # --- Identity -------------------------------------------------------------
 
 SERIES = "I-1"
-SPEC_VERSION = "1.0.0-rc.2"
+SPEC_VERSION = "1.0.0-rc.3"
 
 # --- SERIES-DEFINING: the work (SPEC.md §2-§5) ---------------------------
 
@@ -58,10 +58,15 @@ POWER_SAMPLE_HZ = 1.0
 # the mean per-token logprob it assigns to that continuation under teacher
 # forcing. A host passes a canary if its own mean logprob for the same tokens
 # is within CANARY_MAX_LOGPROB_DELTA nats of the reference value.
+#
+# Calibration (results/canary-calibration.md): Ampere and Ada cards serving
+# the reference model land at delta 0.0000 on all eight canaries; a 4-bit AWQ
+# quantization of the same weights lands at 0.036-0.219 and cleared the rc.2
+# tolerance of 0.10 on five of eight. 0.05 rejects it 7/8.
 
 CANARY_COUNT = 8
 CANARY_TOKENS = 32
-CANARY_MAX_LOGPROB_DELTA = 0.10          # nats, on the mean per-token logprob
+CANARY_MAX_LOGPROB_DELTA = 0.05          # nats, on the mean per-token logprob (rc.2: 0.10)
 CANARY_MIN_PASSING = 6                   # of 8 canaries
 
 # --- Certified engine (SPEC.md §5) --------------------------------------

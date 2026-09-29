@@ -5,8 +5,8 @@
 - **SPEC.md** — the normative definition of unit series `I-1`: model, quantization, prompt set, token count, concurrency, scoring, canary, report.
 - **VERSIONING.md** — what changes the unit (a new series) versus what does not, and the reference-model deprecation policy.
 - **kwh_bench/** — the benchmark tool (`kwh-bench`).
-- **reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node; incomplete while the spec is a release candidate.
-- **results/** — the published units/hour table.
+- **reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node (RTX A5000, 2026-09-26).
+- **results/** — the published units/hour table (RTX 4090: 100.56, RTX A5000: 65.10) and the canary calibration evidence.
 
 ## The unit in one table
 
@@ -45,19 +45,18 @@ kwh-bench canary --server-url http://127.0.0.1:8000 --label my-rig              
 
 The checkpoint is gated behind the Llama 3.1 Community License; log in with `huggingface-cli login` (or set `HF_TOKEN`) before the first run. The repo redistributes no weights.
 
-A run takes a few minutes on a 4090-class card: model load, one warm-up job, three measured jobs. Output is a JSON report (schema in `kwh_bench/schema/`) and a summary like:
+A run takes a few minutes on a 4090-class card: model load, one warm-up job, three measured jobs. Output is a JSON report (schema in `kwh_bench/schema/`) and a summary. This one is the certified RTX 4090 run in `results/`:
 
 ```
-kWh Grade I  series I-1  spec 1.0.0
-GPU: NVIDIA GeForce RTX 4090   engine: vllm 0.x.y (docker)
-units/hour: 91.2   median job: 39.47 s   stability: 0.021
-mean power: 312.4 W   units per electric kWh: 292.0
-run 1: 1660 tok/s   TTFT p50 410ms p95 1.2s   TPOT p50 17.9ms p95 19.4ms
+kWh Grade I  series I-1  spec 1.0.0-rc.2
+GPU: NVIDIA GeForce RTX 4090   engine: vllm 0.30.0 (subprocess)
+units/hour: 100.561   median job: 35.7992 s   stability: 0.00283
+mean power: 319.4 W   units per electric kWh: 314.84
+run 1: 1830.66 tok/s   TTFT p50 263.3ms p95 496.7ms   TPOT p50 16.5ms p95 17.0ms
 canary: PASS (8/8)
 certified: YES
+report sha256: e517fb699eef65c72b5bbf65f3f1e457ff616a85e721ed49ec574f0eb2d4e1e7
 ```
-
-(Illustrative numbers. The real ones go in `results/`.)
 
 ## RunPod (or any pod that can't run Docker)
 
@@ -68,21 +67,20 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Tim-cryptow/kwh-benchmark/ma
 
 Installs the pinned vLLM with pip, clones this repo, runs lock (with `--lock`) and the benchmark, and verifies the report. ~10 minutes on a 24GB card including the weights download.
 
+Two things learned on community pods, both handled by the script: hosts whose driver only supports CUDA 12.x (driver 570 = 12.8 is common) cannot import the PyPI vLLM wheel, so the script installs vLLM's own cu129 build of the same version there; and 40 GB of container disk fits the benchmark plus one 4-bit control but not the BF16 control, so deploy with ≥ 60 GB for that. The pre-flight check (SPEC.md §6 step 0) refuses a host another tenant is already using; pick a different one rather than `--ignore-preflight`.
+
 ## What "certified" means
 
 A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, and the canary check passed. `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.
 
-## Status: release candidate
+## Status: release candidate (rc.3)
 
-Until `reference/lock.json` is complete every report is `certified: false` with reason `unlocked`. Completing it is a one-time step on a machine with the weights and a GPU:
+The lock is complete and reports certify. Left before `v1.0.0` (SPEC.md §9):
 
-```bash
-pip install huggingface_hub
-kwh-bench lock --docker vllm/vllm-openai:<tag>       # hashes weights, records build, generates canaries
-git add reference/lock.json && git commit -m "Lock I-1 reference"
-```
+- Two more consumer cards in `results/` (RTX 3090, RTX 5090; the 4090 is in).
+- The BF16 negative control in `results/canary-calibration.md` (needs a pod with ≥ 60 GB disk). The 4-bit control is in and fails at the current tolerance.
 
-Then run the benchmark on at least three consumer cards, commit the reports to `results/`, and tag `v1.0.0`. See SPEC.md §9.
+`reference/lock.json` was produced once, on the reference node, with `kwh-bench lock`; it does not change for the life of series I-1.
 
 ## Layout
 

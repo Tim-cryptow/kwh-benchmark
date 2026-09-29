@@ -91,6 +91,15 @@ def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]
         c = report["canary"]
         if c is None or not c["passed"]:
             problems.append("certified report without passing canary")
+        else:
+            # Re-judge from the stored deltas under the tolerance in force now
+            # (SPEC.md §7): a report scored under an older, looser tolerance
+            # is accepted only if it would also pass the current one.
+            passing_now = sum(1 for r in c["results"]
+                              if r.get("delta") is not None and r["delta"] <= ref.CANARY_MAX_LOGPROB_DELTA)
+            if passing_now < ref.CANARY_MIN_PASSING:
+                problems.append(f"canary passes only {passing_now}/{len(c['results'])} at the current tolerance "
+                                f"{ref.CANARY_MAX_LOGPROB_DELTA} nats (report was scored at {c['max_delta']})")
         pf = report.get("preflight")
         if pf and pf.get("available") and pf.get("idle") is False:
             problems.append("certified report with a non-idle pre-flight (host contention)")
