@@ -6,7 +6,7 @@
 - **VERSIONING.md** — what changes the unit (a new series) versus what does not, and the reference-model deprecation policy.
 - **kwh_bench/** — the benchmark tool (`kwh-bench`).
 - **kwh_bench/reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node (RTX A5000, 2026-09-26).
-- **results/** — the published units/hour table (RTX 4090: 100.56, RTX A5000: 65.10) and the canary calibration evidence.
+- **results/** — the published units/hour table (RTX 4090: 100.56, RTX 3090: 78.29, RTX A5000: 65.10) and the canary calibration evidence.
 
 ## The unit in one table
 
@@ -77,7 +77,7 @@ A report is certified when every condition in SPEC.md §5–§7 holds: launched 
 
 The lock is complete and reports certify. Left before `v1.0.0` (SPEC.md §9):
 
-- Two more consumer cards in `results/` (RTX 3090, RTX 5090; the 4090 is in).
+- One more consumer card in `results/` (RTX 5090; the 3090 and 4090 are in).
 - The BF16 negative control in `results/canary-calibration.md` (needs a pod with ≥ 60 GB disk). The 4-bit control is in and fails at the current tolerance.
 
 `kwh_bench/reference/lock.json` was produced once, on the reference node, with `kwh-bench lock`; it does not change for the life of series I-1.

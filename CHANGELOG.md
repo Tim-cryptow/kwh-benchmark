@@ -2,6 +2,7 @@
 
 ## 1.0.0-rc.4 — 2026-09-30
 
+- RTX 3090 certified row: **78.29 units/hour**, stability 0.0199, 347 W, 225 units per electric kWh, canary 8/8 at delta 0.0000 (`results/rtx-3090-runpod.json`). Produced through the host client and carries its signature; two of the three consumer cards for 1.0.0 are now in.
 - `reference/lock.json` moved to `kwh_bench/reference/lock.json` and ships as package data. A pip-installed kwh-bench (`pip install git+https://github.com/Tim-cryptow/kwh-benchmark`) previously resolved the lock relative to a repo root that does not exist in site-packages, got an empty lock, and marked every report `unlocked`. The host client depends on kwh-bench as a library, so this had to go first. No spec change; certified reports and their `lock_sha256` are unaffected.
 
 ## 1.0.0-rc.3 — 2026-09-29
