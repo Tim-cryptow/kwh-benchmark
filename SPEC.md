@@ -1,6 +1,6 @@
 # kWh Grade I Unit Specification
 
-**Spec version:** 1.0.0-rc.3 (becomes 1.0.0 at lock, see §9)
+**Spec version:** 1.0.0-rc.4 (becomes 1.0.0 at lock, see §9)
 **Unit series:** `I-1`
 **Status:** Release candidate. Every number in this document is fixed except the fields listed in §9 (weight hashes, canary expectations, exact engine build), which are filled in by `kwh-bench lock` on the reference node before 1.0.0 is tagged.
 
@@ -21,8 +21,8 @@ Anything that changes the amount or kind of work in the reference job creates a 
 | Base model | Llama 3.1 8B Instruct (Meta) |
 | Quantization | INT8 weights, INT8 activations (W8A8), per-channel weight scales, dynamic per-token activation scales |
 | Reference checkpoint | `RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8` on Hugging Face (formerly published under `neuralmagic/`) |
-| Checkpoint revision | pinned by commit hash in `reference/lock.json` (§9) |
-| Weight manifest | SHA-256 of every `*.safetensors` file and of `config.json`, `tokenizer.json`, `tokenizer_config.json`, recorded in `reference/lock.json` |
+| Checkpoint revision | pinned by commit hash in `kwh_bench/reference/lock.json` (§9) |
+| Weight manifest | SHA-256 of every `*.safetensors` file and of `config.json`, `tokenizer.json`, `tokenizer_config.json`, recorded in `kwh_bench/reference/lock.json` |
 | Tokenizer | the checkpoint's own (Llama 3.1 tokenizer, 128,256 vocabulary) |
 | License | Llama 3.1 Community License. Hosts accept it when they pull the weights. The benchmark repo redistributes no weights. |
 
@@ -71,7 +71,7 @@ Rates are **certified** only when produced by an engine in the certified set for
 
 | | Certified for I-1 | Uncertified |
 | --- | --- | --- |
-| Engine | vLLM, OpenAI-compatible server, version pinned in `reference/lock.json` | llama.cpp server with a Q8_0 GGUF of the same base model (weight-only 8-bit; different numerical work, so not the same unit) |
+| Engine | vLLM, OpenAI-compatible server, version pinned in `kwh_bench/reference/lock.json` | llama.cpp server with a Q8_0 GGUF of the same base model (weight-only 8-bit; different numerical work, so not the same unit) |
 | Launched by | `kwh-bench run --engine vllm` (subprocess or Docker, pinned flags) | `kwh-bench run --engine llamacpp` |
 | Attach to an existing server | `--server-url` accepted, result marked uncertified (configuration unverifiable) | same |
 
@@ -123,7 +123,7 @@ The canary check is a light, in-benchmark guard that the engine is serving the r
 
 The host does **not** have to reproduce the reference node's output. Greedy argmax is not stable across batch shapes, kernels or GPU generations: on near-tie tokens it flips, and after one flip the sequences diverge. rc.1 tried exact token matching and failed its own reference machine. Instead the host **scores** the reference continuation:
 
-- 8 of the 256 prompts (IDs listed in `reference/lock.json`) are canaries.
+- 8 of the 256 prompts (IDs listed in `kwh_bench/reference/lock.json`) are canaries.
 - At lock time, for each canary, the reference node records the first 32 token IDs of its greedy continuation **and** the mean per-token log-probability it assigns to those 32 tokens under teacher forcing (`prompt_logprobs` on prompt + continuation).
 - At benchmark time, after the measured runs, the host computes the same teacher-forced mean log-probability for the same 32 tokens, one request at a time. A canary **passes** if `|host − reference| ≤ 0.05` nats.
 - The run **passes** the canary check if at least 6 of 8 canaries pass. Failure is reported as `canary: {passed: false}` and the result is `certified: false` with reason `canary`.
@@ -157,7 +157,7 @@ Canary scoring happens outside the timed jobs and adds no work to the reference 
 
 ## 9. Lock procedure (rc → 1.0.0)
 
-Fields that can only be produced with the actual weights and the actual engine build are filled by `kwh-bench lock`, run once on the reference node. It writes `reference/lock.json`:
+Fields that can only be produced with the actual weights and the actual engine build are filled by `kwh-bench lock`, run once on the reference node. It writes `kwh_bench/reference/lock.json`:
 
 - `model.revision` — the Hugging Face commit hash of the checkpoint used.
 - `model.files` — SHA-256 of each weight and tokenizer file.
@@ -165,7 +165,7 @@ Fields that can only be produced with the actual weights and the actual engine b
 - `canaries[]` — the 8 canary prompt IDs, their 32-token reference continuations, and the reference mean log-probability of each.
 - `locked_at`, `locked_on` (hardware of the reference node).
 
-Tagging `v1.0.0` requires a committed `reference/lock.json` with no null fields, a `results/` table from at least three consumer cards produced by that build, and a `results/canary-calibration.md` showing every certified card inside the §7 tolerance and at least one wrong-model control outside it. Until the lock is complete, every report carries `certified: false` with reason `unlocked`. Until the tag, the spec is `1.0.0-rc.N` and the §7 tolerance may still move; reports keep their deltas, so `verify` re-judges them under whatever tolerance is current.
+Tagging `v1.0.0` requires a committed `kwh_bench/reference/lock.json` with no null fields, a `results/` table from at least three consumer cards produced by that build, and a `results/canary-calibration.md` showing every certified card inside the §7 tolerance and at least one wrong-model control outside it. Until the lock is complete, every report carries `certified: false` with reason `unlocked`. Until the tag, the spec is `1.0.0-rc.N` and the §7 tolerance may still move; reports keep their deltas, so `verify` re-judges them under whatever tolerance is current.
 
 ## 10. What the spec does not decide
 

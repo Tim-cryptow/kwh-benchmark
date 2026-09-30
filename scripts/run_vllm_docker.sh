@@ -7,10 +7,10 @@
 #   HF_TOKEN must be set if the checkpoint requires license acceptance.
 set -euo pipefail
 
-IMAGE="${1:-$(python3 -c 'import json;print(json.load(open("reference/lock.json"))["engine"]["vllm"]["image"] or "vllm/vllm-openai:latest")')}"
+IMAGE="${1:-$(python3 -c 'import json;print(json.load(open("kwh_bench/reference/lock.json"))["engine"]["vllm"]["image"] or "vllm/vllm-openai:latest")')}"
 RUNS="${2:-3}"
 MODEL="RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
-REVISION="$(python3 -c 'import json;print(json.load(open("reference/lock.json"))["model"]["revision"] or "")')"
+REVISION="$(python3 -c 'import json;print(json.load(open("kwh_bench/reference/lock.json"))["model"]["revision"] or "")')"
 HF_CACHE="${HF_HOME:-$HOME/.cache/huggingface}"
 
 echo "image:    $IMAGE"

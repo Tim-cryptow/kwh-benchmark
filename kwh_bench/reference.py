@@ -9,7 +9,7 @@ from __future__ import annotations
 # --- Identity -------------------------------------------------------------
 
 SERIES = "I-1"
-SPEC_VERSION = "1.0.0-rc.3"
+SPEC_VERSION = "1.0.0-rc.4"
 
 # --- SERIES-DEFINING: the work (SPEC.md §2-§5) ---------------------------
 
@@ -73,7 +73,7 @@ CANARY_MIN_PASSING = 6                   # of 8 canaries
 
 CERTIFIED_ENGINES = ("vllm",)
 
-# Pinned vLLM launch flags. The version/image come from reference/lock.json.
+# Pinned vLLM launch flags. The version/image come from kwh_bench/reference/lock.json.
 VLLM_ARGS = [
     "--dtype", "auto",
     "--max-model-len", str(MAX_MODEL_LEN),

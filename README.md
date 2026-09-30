@@ -5,7 +5,7 @@
 - **SPEC.md** — the normative definition of unit series `I-1`: model, quantization, prompt set, token count, concurrency, scoring, canary, report.
 - **VERSIONING.md** — what changes the unit (a new series) versus what does not, and the reference-model deprecation policy.
 - **kwh_bench/** — the benchmark tool (`kwh-bench`).
-- **reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node (RTX A5000, 2026-09-26).
+- **kwh_bench/reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node (RTX A5000, 2026-09-26).
 - **results/** — the published units/hour table (RTX 4090: 100.56, RTX A5000: 65.10) and the canary calibration evidence.
 
 ## The unit in one table
@@ -28,7 +28,7 @@ kwh-bench prompts --check           # generator reproduces the pinned prompt-set
 
 # Certified path: kwh-bench launches vLLM itself with the pinned flags
 kwh-bench run --engine vllm                          # local vllm on PATH
-kwh-bench run --engine vllm --docker vllm/vllm-openai:<tag from reference/lock.json>
+kwh-bench run --engine vllm --docker vllm/vllm-openai:<tag from kwh_bench/reference/lock.json>
 scripts/run_vllm_docker.sh                           # same thing, flags visible in shell
 
 # Exploratory (uncertified) paths
@@ -73,14 +73,14 @@ Two things learned on community pods, both handled by the script: hosts whose dr
 
 A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, and the canary check passed. `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.
 
-## Status: release candidate (rc.3)
+## Status: release candidate (rc.4)
 
 The lock is complete and reports certify. Left before `v1.0.0` (SPEC.md §9):
 
 - Two more consumer cards in `results/` (RTX 3090, RTX 5090; the 4090 is in).
 - The BF16 negative control in `results/canary-calibration.md` (needs a pod with ≥ 60 GB disk). The 4-bit control is in and fails at the current tolerance.
 
-`reference/lock.json` was produced once, on the reference node, with `kwh-bench lock`; it does not change for the life of series I-1.
+`kwh_bench/reference/lock.json` was produced once, on the reference node, with `kwh-bench lock`; it does not change for the life of series I-1.
 
 ## Layout
 
@@ -98,7 +98,7 @@ kwh_bench/
   cli.py
   schema/report.schema.json
 prompts/i1-prompts.jsonl
-reference/lock.json
+kwh_bench/reference/lock.json
 results/
 ```
 

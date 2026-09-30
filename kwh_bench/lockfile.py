@@ -1,4 +1,4 @@
-"""reference/lock.json: fields that need the real weights and engine build (SPEC.md §9)."""
+"""kwh_bench/reference/lock.json: fields that need the real weights and engine build (SPEC.md §9)."""
 
 from __future__ import annotations
 
@@ -10,8 +10,9 @@ from typing import Dict, List, Optional
 
 from . import reference as ref
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-LOCK_PATH = REPO_ROOT / "reference" / "lock.json"
+# Ships inside the package so a pip-installed kwh-bench (and anything that depends on
+# it, such as the host client) sees the same lock as a checkout.
+LOCK_PATH = Path(__file__).resolve().parent / "reference" / "lock.json"
 
 
 @dataclass

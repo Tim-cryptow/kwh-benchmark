@@ -64,7 +64,7 @@ def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]
         if not lock.is_locked:
             problems.append("report claims certification but the local lock is incomplete")
         elif report.get("lock_sha256") != lock_sha256(lock):
-            problems.append("report lock_sha256 does not match the local reference/lock.json")
+            problems.append("report lock_sha256 does not match the local kwh_bench/reference/lock.json")
         e = report["engine"]
         if e["name"] not in ref.CERTIFIED_ENGINES:
             problems.append(f"certified report from uncertified engine {e['name']}")

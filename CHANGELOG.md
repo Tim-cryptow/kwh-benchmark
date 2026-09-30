@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-rc.4 — 2026-09-30
+
+- `reference/lock.json` moved to `kwh_bench/reference/lock.json` and ships as package data. A pip-installed kwh-bench (`pip install git+https://github.com/Tim-cryptow/kwh-benchmark`) previously resolved the lock relative to a repo root that does not exist in site-packages, got an empty lock, and marked every report `unlocked`. The host client depends on kwh-bench as a library, so this had to go first. No spec change; certified reports and their `lock_sha256` are unaffected.
+
 ## 1.0.0-rc.3 — 2026-09-29
 
 - Canary tolerance tightened from 0.10 to 0.05 nats (SPEC.md §7). Evidence in `results/canary-calibration.md`: the reference model scores the locked continuations at delta 0.0000 on both Ampere (A5000) and Ada (4090), while a 4-bit AWQ quantization of the same weights lands at 0.036–0.219 and cleared 0.10 on five of eight canaries, one short of passing the run. At 0.05 it fails 7/8.

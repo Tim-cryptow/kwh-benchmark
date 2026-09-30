@@ -40,7 +40,7 @@ def main():
 @click.option("--out", type=click.Path(path_type=Path), default=None, help="Report path (default results/<timestamp>-<engine>.json).")
 @click.option("--server-url", default=None, help="Attach to a running server instead of launching (result is uncertified).")
 @click.option("--docker", "docker_image", default=None, help="Launch vLLM in this Docker image (e.g. vllm/vllm-openai:<tag>).")
-@click.option("--revision", default=None, help="Checkpoint revision (defaults to reference/lock.json).")
+@click.option("--revision", default=None, help="Checkpoint revision (defaults to kwh_bench/reference/lock.json).")
 @click.option("--port", type=int, default=None)
 @click.option("--gguf", default=None, help="llama.cpp: path to the Q8_0 GGUF.")
 @click.option("--hf-cache", default=None, help="Host HF cache dir to mount into the Docker container.")
@@ -138,7 +138,7 @@ def verify(report: Path):
 @click.option("--engine-log", type=click.Path(path_type=Path), default=None)
 @click.option("--out", type=click.Path(path_type=Path), default=LOCK_PATH, show_default=True)
 def lock(model_dir, revision, docker_image, server_url, port, engine_log, out):
-    """Reference-node only: hash weights, record engine build, generate canaries -> reference/lock.json."""
+    """Reference-node only: hash weights, record engine build, generate canaries -> kwh_bench/reference/lock.json."""
     engine = VLLMEngine(revision=revision, server_url=server_url, docker_image=docker_image, port=port, log_path=str(engine_log) if engine_log else None)
     try:
         lk = asyncio.run(lock_reference(engine, model_dir, revision, docker_image, log=_log, out=out))
@@ -163,7 +163,7 @@ def canary(server_url, model_id, revision, docker_image, port, label, engine_log
     from .runner import calibration_row, run_canary
     lock = load_lock()
     if not lock.is_locked:
-        _log("reference/lock.json is incomplete; run `kwh-bench lock` first")
+        _log("kwh_bench/reference/lock.json is incomplete; run `kwh-bench lock` first")
         sys.exit(2)
     if server_url and model_id:
         _log("use either --server-url or --model, not both")

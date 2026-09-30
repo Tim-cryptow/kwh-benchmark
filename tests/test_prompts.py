@@ -45,3 +45,14 @@ def test_load_rejects_tampered_file(tmp_path):
     bad.write_text(text.replace("Plateau", "Plateaux", 1), encoding="utf-8")
     with pytest.raises(ValueError, match="hash mismatch"):
         load_prompt_file(bad)
+
+
+def test_lock_ships_inside_the_package():
+    """A pip-installed kwh-bench (no checkout) must see the same lock as a checkout, or every
+    report it produces is 'unlocked'. The lock therefore lives inside the package tree."""
+    import kwh_bench
+    from pathlib import Path
+    from kwh_bench.lockfile import LOCK_PATH, load_lock
+    pkg = Path(kwh_bench.__file__).resolve().parent
+    assert LOCK_PATH.resolve().is_relative_to(pkg)
+    assert LOCK_PATH.exists() and load_lock().is_locked

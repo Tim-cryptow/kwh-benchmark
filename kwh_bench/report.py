@@ -69,7 +69,7 @@ def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict
     if preflight and preflight.get("available") and preflight.get("idle") is False:
         reasons.extend(preflight.get("reasons") or ["host_contention: GPU not idle before launch"])
     if not lock.is_locked:
-        reasons.append("unlocked: reference/lock.json is incomplete (spec is a release candidate)")
+        reasons.append("unlocked: kwh_bench/reference/lock.json is incomplete (spec is a release candidate)")
     if engine.name not in ref.CERTIFIED_ENGINES:
         reasons.append(ref.UNCERTIFIED_REASONS.get(engine.name, f"engine {engine.name} not certified for {ref.SERIES}"))
     if engine.launch_mode == "attached":

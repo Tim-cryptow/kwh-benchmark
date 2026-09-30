@@ -157,7 +157,7 @@ async def lock_reference(
     log: Log = lambda s: print(s, file=sys.stderr),
     out: Optional[Path] = None,
 ) -> Lock:
-    """Run the certified engine once on the canary prompts and write reference/lock.json."""
+    """Run the certified engine once on the canary prompts and write kwh_bench/reference/lock.json."""
     if model_dir is None:
         model_dir, commit = resolve_hf_snapshot(ref.MODEL_ID, revision)
         revision = revision or commit
@@ -213,7 +213,7 @@ async def run_canary(engine: Engine, lock: Optional[Lock] = None, label: str = "
 
     lock = lock or load_lock()
     if not lock.is_locked:
-        raise ValueError("reference/lock.json is incomplete; nothing to score against")
+        raise ValueError("kwh_bench/reference/lock.json is incomplete; nothing to score against")
     prompts = canonical_prompts()
     by_id = {p.id: p for p in prompts}
     ids = sorted(lock.canary_ids())
