@@ -187,3 +187,19 @@ def test_forbidden_flags_block_certification():
     assert certification_reasons(info, runs, score, canary, lock) == []
     info.launch_args = ["--model", ref.MODEL_ID, "--max-num-seqs", "64"]
     assert certification_reasons(info, runs, score, canary, lock) == ["--max-num-seqs 64 != 32"]
+
+
+def test_watermark_config_blocks_certification_but_scheduler_watermark_does_not():
+    from kwh_bench.engines.base import EngineInfo
+    from kwh_bench.load import JobResult
+    from kwh_bench.report import certification_reasons
+    lock = _locked()
+    runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
+    score = score_runs([40.0, 40.0, 40.0])
+    canary = {"passed": True, "passing": 8, "required": 6, "max_delta": ref.CANARY_MAX_LOGPROB_DELTA, "results": []}
+    base = ["--model", ref.MODEL_ID, "--max-num-seqs", "32"]
+    info = EngineInfo(name="vllm", version="0.30.0", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess",
+                      launch_args=base + ["--watermark-config", '{"key": 1}'])
+    assert certification_reasons(info, runs, score, canary, lock) == ["forbidden flag --watermark-config"]
+    info.launch_args = base + ["--watermark", "0.01"]
+    assert certification_reasons(info, runs, score, canary, lock) == []

@@ -1,6 +1,6 @@
 # kWh Grade I Unit Specification
 
-**Spec version:** 1.0.0-rc.4 (becomes 1.0.0 at lock, see §9)
+**Spec version:** 1.0.0-rc.5 (becomes 1.0.0 at lock, see §9)
 **Unit series:** `I-1`
 **Status:** Release candidate. Every number in this document is fixed except the fields listed in §9 (weight hashes, canary expectations, exact engine build), which are filled in by `kwh-bench lock` on the reference node before 1.0.0 is tagged.
 
@@ -88,7 +88,7 @@ Rates are **certified** only when produced by an engine in the certified set for
 --gpu-memory-utilization 0.90
 ```
 
-Forbidden for certified runs: `--speculative-config` (any), `--enable-prefix-caching`, `--quantization` other than the checkpoint's own (`compressed-tensors`), tensor parallelism > 1 (I-1 is a single-device unit), any `--max-num-seqs` other than 32.
+Forbidden for certified runs: `--speculative-config` (any), `--enable-prefix-caching`, `--quantization` other than the checkpoint's own (`compressed-tensors`), tensor parallelism > 1 (I-1 is a single-device unit), any `--max-num-seqs` other than 32, and `--watermark-config` (any). A text watermark changes which token is sampled, so a watermarked engine's outputs stop matching the reference model's choices and cannot be verified against it.
 
 Everything else (CUDA graphs, attention backend, chunked prefill) is the engine's default and is the host's to optimize within the pinned version. Optimizations that do less work per token are what the forbidden list excludes; optimizations that do the same work faster are the point.
 

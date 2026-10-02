@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kwh-bench"
-version = "1.0.0rc4"
+version = "1.0.0rc5"
 description = "kWh Exchange Grade I benchmark: measures a rig's rate in reference jobs per hour."
 readme = "README.md"
 license = { text = "Apache-2.0" }

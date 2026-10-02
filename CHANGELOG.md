@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0-rc.5 — 2026-10-02
+
+- `--watermark-config` joins the forbidden flags (SPEC.md §5). vLLM 0.30.0 can apply a text watermark (a keyed Gumbel sampler) when the engine is launched with a watermark config; it is off by default and changes no work, but it changes which token is chosen. The host client verifies delivered greedy outputs by scoring them under the reference model, and a watermarked engine's outputs would fail that check while being honestly produced. Not to be confused with `--watermark`, the scheduler's KV-cache headroom, which stays allowed.
+
 ## 1.0.0-rc.4 — 2026-09-30
 
 - RTX 3090 certified row: **78.29 units/hour**, stability 0.0199, 347 W, 225 units per electric kWh, canary 8/8 at delta 0.0000 (`results/rtx-3090-runpod.json`). Produced through the host client and carries its signature; two of the three consumer cards for 1.0.0 are now in.

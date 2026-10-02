@@ -9,7 +9,7 @@ from __future__ import annotations
 # --- Identity -------------------------------------------------------------
 
 SERIES = "I-1"
-SPEC_VERSION = "1.0.0-rc.4"
+SPEC_VERSION = "1.0.0-rc.5"
 
 # --- SERIES-DEFINING: the work (SPEC.md §2-§5) ---------------------------
 
@@ -93,6 +93,10 @@ VLLM_FORBIDDEN_FLAGS = (
     "-tp",
     "--pipeline-parallel-size",
     "-pp",
+    # A text watermark changes which token is sampled (vLLM's Gumbel watermark replaces the
+    # sampling step), so delivered outputs would stop matching the reference model's choices.
+    # Not to be confused with `--watermark`, the scheduler's KV-cache headroom.
+    "--watermark-config",
 )
 
 # Uncertified exploratory engine: llama.cpp with a Q8_0 GGUF of the base model.
