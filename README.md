@@ -6,7 +6,7 @@
 - **VERSIONING.md** — what changes the unit (a new series) versus what does not, and the reference-model deprecation policy.
 - **kwh_bench/** — the benchmark tool (`kwh-bench`).
 - **kwh_bench/reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node (RTX A5000, 2026-09-26).
-- **results/** — the published units/hour table (RTX 4090: 100.56, RTX 3090: 78.29, RTX A5000: 65.10) and the canary calibration evidence.
+- **results/** — the published units/hour table (RTX 4090: 100.56, RTX 3090: 78.29, RTX A5000: 65.10, A40: 60.19) and the canary calibration evidence.
 
 ## The unit in one table
 
@@ -28,6 +28,7 @@ kwh-bench prompts --check           # generator reproduces the pinned prompt-set
 
 # Certified path: kwh-bench launches vLLM itself with the pinned flags
 kwh-bench run --engine vllm                          # local vllm on PATH
+kwh-bench run --engine vllm --max-model-len 8192     # certify at the context you will serve (1024-8192)
 kwh-bench run --engine vllm --docker vllm/vllm-openai:<tag from kwh_bench/reference/lock.json>
 scripts/run_vllm_docker.sh                           # same thing, flags visible in shell
 
@@ -71,9 +72,9 @@ Two things learned on community pods, both handled by the script: hosts whose dr
 
 ## What "certified" means
 
-A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, and the canary check passed. `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.
+A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, a context length from 1024 to 8192, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, and the canary check passed (the mean of the eight canaries' deltas within 0.05 nats). `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.
 
-## Status: release candidate (rc.5)
+## Status: release candidate (rc.6)
 
 The lock is complete and reports certify. Left before `v1.0.0` (SPEC.md §9):
 

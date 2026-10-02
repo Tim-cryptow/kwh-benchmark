@@ -49,7 +49,10 @@ def main():
 @click.option("--mock-step-ms", type=float, default=0.5, hidden=True)
 @click.option("--concurrency", type=int, default=ref.CONCURRENCY, hidden=True, help="Override for experiments only; any value but the spec's disqualifies the result.")
 @click.option("--ignore-preflight", is_flag=True, help="Run even if the GPU is not idle (result is uncertified: host_contention).")
-def run(engine_name, runs, out, server_url, docker_image, revision, port, gguf, hf_cache, engine_log, prompt_file, mock_step_ms, concurrency, ignore_preflight):
+@click.option("--max-model-len", type=int, default=ref.MAX_MODEL_LEN, show_default=True,
+              help=f"vLLM context length; {ref.MAX_MODEL_LEN_MIN}-{ref.MAX_MODEL_LEN_MAX} certifies. Serve at the value you certify with.")
+def run(engine_name, runs, out, server_url, docker_image, revision, port, gguf, hf_cache, engine_log, prompt_file, mock_step_ms, concurrency, ignore_preflight,
+        max_model_len):
     """Run the Grade I benchmark and write a report."""
     lock = load_lock()
     if engine_name == "vllm":
@@ -60,6 +63,7 @@ def run(engine_name, runs, out, server_url, docker_image, revision, port, gguf, 
             port=port or 8000,
             log_path=str(engine_log) if engine_log else None,
             hf_cache=hf_cache,
+            max_model_len=max_model_len,
         )
     elif engine_name == "llamacpp":
         engine = LlamaCppEngine(gguf_path=gguf, server_url=server_url, port=port or 8080, log_path=str(engine_log) if engine_log else None)
@@ -158,7 +162,8 @@ def lock(model_dir, revision, docker_image, server_url, port, engine_log, out):
 @click.option("--engine-log", type=click.Path(path_type=Path), default=None)
 @click.option("--out", type=click.Path(path_type=Path), default=None, help="Record path (default results/canary/<label>.json).")
 @click.option("--append", "append_md", is_flag=True, help="Append the row to results/canary-calibration.md.")
-def canary(server_url, model_id, revision, docker_image, port, label, engine_log, out, append_md):
+@click.option("--max-model-len", type=int, default=ref.MAX_MODEL_LEN, show_default=True, help="vLLM context length when launching.")
+def canary(server_url, model_id, revision, docker_image, port, label, engine_log, out, append_md, max_model_len):
     """Score the locked canaries against a server or model without a benchmark run (SPEC.md §7 calibration)."""
     from .runner import calibration_row, run_canary
     lock = load_lock()
@@ -175,6 +180,7 @@ def canary(server_url, model_id, revision, docker_image, port, label, engine_log
         docker_image=docker_image,
         port=port,
         log_path=str(engine_log) if engine_log else None,
+        max_model_len=max_model_len,
     )
     try:
         rec = asyncio.run(run_canary(engine, lock=lock, label=label or "", log=_log))
@@ -186,7 +192,9 @@ def canary(server_url, model_id, revision, docker_image, port, label, engine_log
         d = "n/a" if r["delta"] is None else f"{r['delta']:.4f}"
         click.echo(f"  canary {r['prompt_id']:>3}: host {r['mean_logprob']}  ref {r['reference_mean_logprob']}  delta {d}  {'pass' if r['pass'] else 'FAIL'}")
     expect = "pass" if rec["is_reference_model"] else "fail (control)"
-    click.echo(f"canary: {'PASS' if c['passed'] else 'FAIL'} ({c['passing']}/{len(c['results'])}, tolerance {c['max_delta']} nats)  expected: {expect}")
+    mean = "n/a" if c.get("mean_delta") is None else f"{c['mean_delta']:.4f}"
+    click.echo(f"canary: {'PASS' if c['passed'] else 'FAIL'} (mean delta {mean}, tolerance {c['max_delta']} nats; "
+               f"{c['passing']}/{len(c['results'])} canaries within it)  expected: {expect}")
     if c["passed"] != rec["is_reference_model"]:
         click.echo("UNEXPECTED outcome: revisit CANARY_MAX_LOGPROB_DELTA (SPEC.md §7).")
     safe = "".join(ch if ch.isalnum() or ch in "-._" else "-" for ch in rec["label"]).strip("-")

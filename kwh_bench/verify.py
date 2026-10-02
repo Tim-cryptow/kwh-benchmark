@@ -11,7 +11,7 @@ import jsonschema
 
 from . import reference as ref
 from .lockfile import Lock, load_lock, lock_sha256
-from .report import load_schema, report_hash
+from .report import canary_mean_delta, load_schema, max_model_len_problem, report_hash
 
 
 def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]]:
@@ -80,6 +80,9 @@ def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]
         for flag in ref.VLLM_FORBIDDEN_FLAGS:
             if f" {flag}" in f" {args}":
                 problems.append(f"certified report with forbidden flag {flag}")
+        mml = max_model_len_problem(e["launch_args"])
+        if mml:
+            problems.append(f"certified report with {mml}")
         if len(report["runs"]) < ref.MIN_MEASURED_JOBS:
             problems.append("certified report with too few runs")
         if stab > ref.MAX_STABILITY:
@@ -92,14 +95,16 @@ def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]
         if c is None or not c["passed"]:
             problems.append("certified report without passing canary")
         else:
-            # Re-judge from the stored deltas under the tolerance in force now
-            # (SPEC.md §7): a report scored under an older, looser tolerance
+            # Re-judge from the stored deltas under the rule and tolerance in force now
+            # (SPEC.md §7): a report scored under an older rule or a looser tolerance
             # is accepted only if it would also pass the current one.
-            passing_now = sum(1 for r in c["results"]
-                              if r.get("delta") is not None and r["delta"] <= ref.CANARY_MAX_LOGPROB_DELTA)
-            if passing_now < ref.CANARY_MIN_PASSING:
-                problems.append(f"canary passes only {passing_now}/{len(c['results'])} at the current tolerance "
-                                f"{ref.CANARY_MAX_LOGPROB_DELTA} nats (report was scored at {c['max_delta']})")
+            mean = canary_mean_delta(c["results"])
+            tol = ref.CANARY_MAX_LOGPROB_DELTA
+            if mean is None:
+                problems.append("canary: not every canary has a stored delta, so the current rule cannot pass it")
+            elif mean > tol:
+                problems.append(f"canary mean delta {mean} exceeds the current tolerance {tol} nats "
+                                f"(report was scored under spec {report['spec']['spec_version']})")
         pf = report.get("preflight")
         if pf and pf.get("available") and pf.get("idle") is False:
             problems.append("certified report with a non-idle pre-flight (host contention)")

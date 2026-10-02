@@ -37,13 +37,13 @@ def test_calibration_row_shapes():
     }
     row = calibration_row(rec)
     assert row.startswith("| 2026-09-26 | NVIDIA RTX A5000 / sm86 | vllm 0.30.0 |")
-    assert "0.0000 ×8" in row and "8/8 PASS" in row and "expected pass: as expected" in row
+    assert "0.0000 ×8" in row and "mean 0.0000 PASS" in row and "expected pass: as expected" in row
 
     rec["is_reference_model"] = False
     rec["engine"]["model_id"] = "meta-llama/Llama-3.1-8B-Instruct"
     rec["canary"] = {"passed": False, "passing": 1, "results": [{"delta": 0.21}, {"delta": 0.34}] + [{"delta": None}] * 6}
     row = calibration_row(rec)
-    assert "(control)" in row and "0.2100–0.3400" in row and "1/8 FAIL" in row and "expected fail: as expected" in row
+    assert "(control)" in row and "0.2100–0.3400" in row and "mean n/a FAIL" in row and "expected fail: as expected" in row
 
     rec["canary"]["passed"] = True
     assert "UNEXPECTED" in calibration_row(rec)

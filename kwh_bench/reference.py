@@ -9,7 +9,7 @@ from __future__ import annotations
 # --- Identity -------------------------------------------------------------
 
 SERIES = "I-1"
-SPEC_VERSION = "1.0.0-rc.5"
+SPEC_VERSION = "1.0.0-rc.6"
 
 # --- SERIES-DEFINING: the work (SPEC.md §2-§5) ---------------------------
 
@@ -24,7 +24,6 @@ GENERATED_TOKENS = 256
 GENERATED_TOKENS_PER_JOB = REQUESTS_PER_JOB * GENERATED_TOKENS   # 65,536
 PROMPT_TOKENS_PER_JOB = REQUESTS_PER_JOB * PROMPT_TOKENS         # 131,072
 CONCURRENCY = 32
-MAX_MODEL_LEN = 1024
 
 SAMPLING = {
     "temperature": 0.0,
@@ -56,32 +55,47 @@ POWER_SAMPLE_HZ = 1.0
 # not stable across batch shapes and kernels); it *scores* it. The lock
 # records, per canary, the reference node's greedy 32-token continuation and
 # the mean per-token logprob it assigns to that continuation under teacher
-# forcing. A host passes a canary if its own mean logprob for the same tokens
-# is within CANARY_MAX_LOGPROB_DELTA nats of the reference value.
+# forcing. A canary's delta is |host mean logprob - reference mean logprob|.
+# The run passes when every canary was scored and the MEAN of the eight
+# deltas is within CANARY_MAX_LOGPROB_DELTA nats (rc.6; rc.3-rc.5 applied the
+# tolerance to each canary and required 6 of 8).
 #
-# Calibration (results/canary-calibration.md): Ampere and Ada cards serving
-# the reference model land at delta 0.0000 on all eight canaries; a 4-bit AWQ
-# quantization of the same weights lands at 0.036-0.219 and cleared the rc.2
-# tolerance of 0.10 on five of eight. 0.05 rejects it 7/8.
+# Calibration (results/canary-calibration.md): three cards land at 0.0000 on
+# every canary; an A40 lands at 0.005-0.048 (mean 0.023); a 4-bit AWQ
+# quantization of the same weights lands at 0.036-0.219 (mean 0.108). Per
+# canary those ranges overlap; the means are about 2x either side of 0.05.
 
 CANARY_COUNT = 8
 CANARY_TOKENS = 32
-CANARY_MAX_LOGPROB_DELTA = 0.05          # nats, on the mean per-token logprob (rc.2: 0.10)
-CANARY_MIN_PASSING = 6                   # of 8 canaries
+CANARY_MAX_LOGPROB_DELTA = 0.05          # nats, on the mean of the canaries' deltas (rc.6)
 
 # --- Certified engine (SPEC.md §5) --------------------------------------
 
 CERTIFIED_ENGINES = ("vllm",)
 
-# Pinned vLLM launch flags. The version/image come from kwh_bench/reference/lock.json.
-VLLM_ARGS = [
-    "--dtype", "auto",
-    "--max-model-len", str(MAX_MODEL_LEN),
-    "--max-num-seqs", str(CONCURRENCY),
-    "--no-enable-prefix-caching",
-    "--seed", "0",
-    "--gpu-memory-utilization", "0.90",
-]
+# Engine context length. The reference job needs 512 + 256 = 768 tokens; buyers'
+# requests need more. Any value in the certified range gives the same rate (A40,
+# 2026-10-02: 60.230 units/hour at 1024, 60.228 at 8192), so the host chooses it,
+# serves at the value it certified with, and the report records it (rc.6).
+MAX_MODEL_LEN = 1024                     # default for `kwh-bench run`; the lock was made at 1024
+MAX_MODEL_LEN_MIN = 1024
+MAX_MODEL_LEN_MAX = 8192
+
+
+def vllm_args(max_model_len: int = MAX_MODEL_LEN) -> list:
+    """Pinned vLLM launch flags. The version/image come from kwh_bench/reference/lock.json."""
+    return [
+        "--dtype", "auto",
+        "--max-model-len", str(max_model_len),
+        "--max-num-seqs", str(CONCURRENCY),
+        "--no-enable-prefix-caching",
+        "--seed", "0",
+        "--gpu-memory-utilization", "0.90",
+    ]
+
+
+VLLM_ARGS = vllm_args()
+
 # Any of these in the effective launch args disqualifies certification.
 VLLM_FORBIDDEN_FLAGS = (
     "--speculative-config",

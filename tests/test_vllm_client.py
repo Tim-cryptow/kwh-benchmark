@@ -122,6 +122,13 @@ def test_build_argv_has_pinned_flags():
     assert "--revision deadbeef" in joined
     assert "--max-num-seqs 32" in joined and "--no-enable-prefix-caching" in joined
     assert "--port 8123" in joined
+    assert "--max-model-len 1024" in joined                      # the default
+
+
+def test_build_argv_carries_the_chosen_context_length():
+    e = VLLMEngine(docker_image="vllm/vllm-openai:test", max_model_len=8192)
+    argv = e.build_argv()
+    assert argv[argv.index("--max-model-len") + 1] == "8192" and argv.count("--max-model-len") == 1
 
 
 def test_build_docker_argv():

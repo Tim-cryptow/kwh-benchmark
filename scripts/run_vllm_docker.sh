@@ -5,6 +5,7 @@
 #
 # Usage: scripts/run_vllm_docker.sh [image] [runs]
 #   HF_TOKEN must be set if the checkpoint requires license acceptance.
+#   MAX_MODEL_LEN (1024-8192, default 1024) is the context the engine serves; certify at the value you serve with.
 set -euo pipefail
 
 IMAGE="${1:-$(python3 -c 'import json;print(json.load(open("kwh_bench/reference/lock.json"))["engine"]["vllm"]["image"] or "vllm/vllm-openai:latest")')}"
@@ -19,4 +20,4 @@ echo "hf cache: $HF_CACHE"
 [ "$IMAGE" = "vllm/vllm-openai:latest" ] && echo "WARNING: lock.json has no pinned image; result will be uncertified" >&2
 
 exec kwh-bench run --engine vllm --docker "$IMAGE" --hf-cache "$HF_CACHE" --runs "$RUNS" \
-  ${REVISION:+--revision "$REVISION"} --engine-log results/vllm-server.log
+  --max-model-len "${MAX_MODEL_LEN:-1024}" ${REVISION:+--revision "$REVISION"} --engine-log results/vllm-server.log

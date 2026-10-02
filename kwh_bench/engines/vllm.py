@@ -39,10 +39,12 @@ class VLLMEngine(Engine):
         extra_args: Optional[List[str]] = None,
         log_path: Optional[str] = None,
         hf_cache: Optional[str] = None,
+        max_model_len: int = ref.MAX_MODEL_LEN,
     ):
         self.model = model
         self.revision = revision
         self.port = port
+        self.max_model_len = int(max_model_len)
         self.docker_image = docker_image
         self.extra_args = list(extra_args or [])
         self.log_path = log_path
@@ -59,7 +61,7 @@ class VLLMEngine(Engine):
     def _server_args(self) -> List[str]:
         """Flags common to every launch form (model is added per form: positional for
         `vllm serve` and the Docker image entrypoint, `--model` for the module form)."""
-        args = list(ref.VLLM_ARGS) + ["--port", str(self.port), "--host", "0.0.0.0"]
+        args = ref.vllm_args(self.max_model_len) + ["--port", str(self.port), "--host", "0.0.0.0"]
         if self.revision:
             args += ["--revision", self.revision]
         return args + self.extra_args

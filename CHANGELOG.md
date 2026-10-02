@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-rc.6 — 2026-10-02
 
-- A40 certified row: **60.19 units/hour**, stability 0.0016, 296 W, 203 units per electric kWh (`results/a40-runpod.json`), produced through the host client and carrying its signature. The first certified card with nonzero canary deltas: 0.005–0.048, eight of eight inside 0.05. `results/canary-calibration.md` records what that means for the tolerance and proposes judging the mean delta in the next rc; SPEC.md §7's rationale now says so. The rule and the tolerance are unchanged.
-- Two attached A40 runs (`results/uncertified/a40-attached-mml1024.json`, `a40-attached-mml8192.json`) for the host client's open question D8: the reference job's rate at `--max-model-len 8192` matches the rate at 1024 (60.228 against 60.230 units/hour), while every canary delta moves.
+- **Context length is the host's choice, 1024 to 8192** (SPEC.md §5). `kwh-bench run --max-model-len N`, default 1024; the value is in the report's launch args and anything outside the range, or unset, does not certify. The job, and so the unit, are unchanged: two attached A40 runs in the same session ran the reference job at 60.230 units/hour at 1024 and 60.228 at 8192 (`results/uncertified/a40-attached-mml1024.json`, `a40-attached-mml8192.json`). A host serves at the value it certified with, so buyers' requests can be up to 8,192 tokens instead of 1,024. Settles the host client's D8.
+- **The canary check judges the mean** (SPEC.md §7). The run passes when all eight canaries were scored and the mean of their deltas is within 0.05 nats; rc.3–rc.5 required six of eight canaries each within 0.05. Per canary, honest noise and the nearest wrong model now overlap (the A40 reaches 0.048, the 4-bit control starts at 0.036); their means are 0.023 and 0.108. Reports gain `canary.rule` and `canary.mean_delta`, and `verify` re-judges every certified report under the new rule: all four pass. Settles the benchmark half of the host client's D9.
+- A40 certified row: **60.19 units/hour**, stability 0.0016, 296 W, 203 units per electric kWh (`results/a40-runpod.json`), produced through the host client and carrying its signature. The first certified card with nonzero canary deltas (0.005–0.048); evidence in `results/canary-calibration.md`.
 
 ## 1.0.0-rc.5 — 2026-10-02
 

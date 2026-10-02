@@ -40,9 +40,21 @@ def report_hash(report: dict) -> str:
 
 # --- canary -------------------------------------------------------------
 
+def canary_mean_delta(results: List[dict]) -> Optional[float]:
+    """Mean of the canaries' deltas (SPEC.md §7); None unless every canary was scored."""
+    deltas = [r.get("delta") for r in results]
+    if not deltas or any(d is None for d in deltas):
+        return None
+    return round(sum(deltas) / len(deltas), 5)
+
+
 def evaluate_canary(scores: Dict[int, Optional[float]], lock: Lock) -> Optional[dict]:
     """`scores` maps canary prompt id -> the host's mean per-token logprob for the
-    locked continuation (None if scoring failed). Compared against the lock."""
+    locked continuation (None if scoring failed). Compared against the lock.
+
+    The run passes when every canary was scored and the mean of their deltas is
+    within the tolerance (rc.6). Each result's `pass` says whether that canary
+    alone is within it, for reading only; `passing` counts those."""
     if not lock.is_locked:
         return None  # unlocked: nothing to compare against
     results = []
@@ -56,9 +68,46 @@ def evaluate_canary(scores: Dict[int, Optional[float]], lock: Lock) -> Optional[
             "delta": round(delta, 5) if delta is not None else None,
             "pass": delta is not None and delta <= ref.CANARY_MAX_LOGPROB_DELTA,
         })
-    passing = sum(1 for x in results if x["pass"])
-    return {"passed": passing >= ref.CANARY_MIN_PASSING, "passing": passing, "required": ref.CANARY_MIN_PASSING,
+    mean = canary_mean_delta(results)
+    return {"passed": mean is not None and mean <= ref.CANARY_MAX_LOGPROB_DELTA, "rule": "mean", "mean_delta": mean,
+            "passing": sum(1 for x in results if x["pass"]), "required": len(results),
             "max_delta": ref.CANARY_MAX_LOGPROB_DELTA, "results": results}
+
+
+def canary_failure(canary: dict) -> str:
+    """Why a canary block did not pass, in one line."""
+    mean = canary_mean_delta(canary.get("results") or [])
+    if mean is None:
+        missing = sum(1 for r in canary.get("results") or [] if r.get("delta") is None)
+        return f"canary: {missing} of {len(canary.get('results') or [])} canaries not scored"
+    return f"canary: mean delta {mean} > {ref.CANARY_MAX_LOGPROB_DELTA} nats"
+
+
+def launch_max_model_len(args: List[str]) -> Optional[int]:
+    """The `--max-model-len` a vLLM launch used, or None if absent or unreadable."""
+    for i, a in enumerate(args):
+        val = None
+        if a == "--max-model-len" and i + 1 < len(args):
+            val = args[i + 1]
+        elif a.startswith("--max-model-len="):
+            val = a.split("=", 1)[1]
+        if val is not None:
+            try:
+                return int(val)
+            except ValueError:
+                return None
+    return None
+
+
+def max_model_len_problem(args: List[str]) -> Optional[str]:
+    """Reason a launch's context length is outside the certified range (SPEC.md §5), else None."""
+    mml = launch_max_model_len(args)
+    lo, hi = ref.MAX_MODEL_LEN_MIN, ref.MAX_MODEL_LEN_MAX
+    if mml is None:
+        return f"--max-model-len not set (certified range {lo}-{hi})"
+    if not lo <= mml <= hi:
+        return f"--max-model-len {mml} outside the certified range {lo}-{hi}"
+    return None
 
 
 # --- certification ------------------------------------------------------
@@ -89,6 +138,10 @@ def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict
             v = engine.launch_args[engine.launch_args.index("--max-num-seqs") + 1]
             if v != str(ref.CONCURRENCY):
                 reasons.append(f"--max-num-seqs {v} != {ref.CONCURRENCY}")
+        if engine.launch_mode != "attached":
+            problem = max_model_len_problem(engine.launch_args)
+            if problem:
+                reasons.append(problem)
     if len(runs) < ref.MIN_MEASURED_JOBS:
         reasons.append(f"only {len(runs)} measured runs, minimum {ref.MIN_MEASURED_JOBS}")
     if any(r.failures for r in runs):
@@ -101,7 +154,7 @@ def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict
         if canary is None:
             reasons.append("canary: not evaluated")
         elif not canary["passed"]:
-            reasons.append(f"canary: {canary['passing']}/{len(canary['results'])} passed, need {canary['required']}")
+            reasons.append(canary_failure(canary))
     return reasons
 
 
@@ -190,7 +243,9 @@ def summarize(report: dict) -> str:
     lines.append(f"run 1: {r0['tokens_per_second']} tok/s   TTFT p50 {fmt_ms(r0['ttft_p50_s'])} p95 {fmt_ms(r0['ttft_p95_s'])}   TPOT p50 {fmt_ms(r0['tpot_p50_s'])} p95 {fmt_ms(r0['tpot_p95_s'])}")
     if report["canary"] is not None:
         c = report["canary"]
-        lines.append(f"canary: {'PASS' if c['passed'] else 'FAIL'} ({c['passing']}/{len(c['results'])})")
+        mean = canary_mean_delta(c["results"])
+        lines.append(f"canary: {'PASS' if c['passed'] else 'FAIL'} (mean delta {'n/a' if mean is None else f'{mean:.4f}'}, "
+                     f"tolerance {c['max_delta']}; {c['passing']}/{len(c['results'])} canaries within it)")
     lines.append("certified: YES" if report["certified"] else "certified: NO\n  - " + "\n  - ".join(report["certified_reasons"]))
     lines.append(f"report sha256: {report['report_sha256']}")
     return "\n".join(lines)

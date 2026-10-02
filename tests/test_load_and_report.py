@@ -70,20 +70,24 @@ def _locked(ref_lp=-1.0):
                 canaries=[Canary(i, list(range(ref.CANARY_TOKENS)), ref_lp) for i in range(ref.CANARY_COUNT)])
 
 
-def test_canary_evaluation_logprob_delta():
+def test_canary_evaluation_judges_the_mean():
     lock = _locked(ref_lp=-1.0)
     assert lock.is_locked
     scores = {i: -1.0 for i in range(ref.CANARY_COUNT)}
-    scores[0] = -1.0 + 0.02            # numerical noise: passes
-    scores[1] = -1.0 - 0.045           # inside tolerance: passes
-    scores[2] = -1.6                   # different model/quant: fails
-    scores[3] = None                   # scoring failed: fails
+    scores[0] = -1.0 + 0.02            # numerical noise
+    scores[1] = -1.0 - 0.045           # near the tolerance on its own
+    scores[2] = -1.2                   # one canary far off: 0.2 on its own
     c = evaluate_canary(scores, lock)
-    assert c["passing"] == 6 and c["passed"] is True
+    assert c["rule"] == "mean" and c["mean_delta"] == round((0.02 + 0.045 + 0.2) / 8, 5)
+    assert c["passed"] is True                                  # mean 0.033: one noisy canary does not decide
+    assert c["passing"] == 7 and c["required"] == ref.CANARY_COUNT
     assert c["max_delta"] == ref.CANARY_MAX_LOGPROB_DELTA == 0.05
-    assert c["results"][2]["pass"] is False and c["results"][3]["delta"] is None
-    scores[4] = -0.5                   # a third failure -> below 6/8
+    assert c["results"][2]["pass"] is False                     # per canary, for reading only
+    scores[3] = -1.2                                            # a second one: mean 0.058
     assert evaluate_canary(scores, lock)["passed"] is False
+    scores[3] = None                                            # a canary that was not scored fails the run
+    c = evaluate_canary(scores, lock)
+    assert c["passed"] is False and c["mean_delta"] is None and c["results"][3]["delta"] is None
 
 
 def test_awq_int4_control_fails_at_current_tolerance():
@@ -92,7 +96,15 @@ def test_awq_int4_control_fails_at_current_tolerance():
     awq_deltas = [0.03582, 0.094, 0.05838, 0.09849, 0.05519, 0.14166, 0.16482, 0.21873]
     scores = {i: -1.0 - d for i, d in enumerate(awq_deltas)}
     c = evaluate_canary(scores, lock)
-    assert c["passed"] is False and c["passing"] == 1
+    assert c["passed"] is False and c["passing"] == 1 and round(c["mean_delta"], 3) == 0.108
+
+
+def test_a40_deltas_pass_on_the_mean():
+    """The A40 (results/a40-runpod.json): every canary inside 0.05 but the worst at 0.048; mean 0.023."""
+    lock = _locked(ref_lp=-1.0)
+    a40 = [0.02521, 0.02074, 0.03048, 0.04788, 0.01496, 0.01644, 0.02227, 0.00524]
+    c = evaluate_canary({i: -1.0 + d for i, d in enumerate(a40)}, lock)
+    assert c["passed"] is True and round(c["mean_delta"], 3) == 0.023
 
 
 def test_verify_rejudges_canary_under_current_tolerance(tmp_path):
@@ -177,15 +189,16 @@ def test_forbidden_flags_block_certification():
     from kwh_bench.report import certification_reasons
     lock = _locked()
     info = EngineInfo(name="vllm", version="0.30.0", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess",
-                      launch_args=["--model", ref.MODEL_ID, "--max-num-seqs", "32", "--speculative-config", "{}"])
+                      launch_args=["--model", ref.MODEL_ID, "--max-model-len", "1024", "--max-num-seqs", "32",
+                                   "--speculative-config", "{}"])
     runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
     score = score_runs([40.0, 40.0, 40.0])
     canary = {"passed": True, "passing": 8, "required": 6, "max_delta": ref.CANARY_MAX_LOGPROB_DELTA, "results": []}
     reasons = certification_reasons(info, runs, score, canary, lock)
     assert reasons == ["forbidden flag --speculative-config"]
-    info.launch_args = ["--model", ref.MODEL_ID, "--max-num-seqs", "32"]
+    info.launch_args = ["--model", ref.MODEL_ID, "--max-model-len", "1024", "--max-num-seqs", "32"]
     assert certification_reasons(info, runs, score, canary, lock) == []
-    info.launch_args = ["--model", ref.MODEL_ID, "--max-num-seqs", "64"]
+    info.launch_args = ["--model", ref.MODEL_ID, "--max-model-len", "1024", "--max-num-seqs", "64"]
     assert certification_reasons(info, runs, score, canary, lock) == ["--max-num-seqs 64 != 32"]
 
 
@@ -197,9 +210,47 @@ def test_watermark_config_blocks_certification_but_scheduler_watermark_does_not(
     runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
     score = score_runs([40.0, 40.0, 40.0])
     canary = {"passed": True, "passing": 8, "required": 6, "max_delta": ref.CANARY_MAX_LOGPROB_DELTA, "results": []}
-    base = ["--model", ref.MODEL_ID, "--max-num-seqs", "32"]
+    base = ["--model", ref.MODEL_ID, "--max-model-len", "1024", "--max-num-seqs", "32"]
     info = EngineInfo(name="vllm", version="0.30.0", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess",
                       launch_args=base + ["--watermark-config", '{"key": 1}'])
     assert certification_reasons(info, runs, score, canary, lock) == ["forbidden flag --watermark-config"]
     info.launch_args = base + ["--watermark", "0.01"]
     assert certification_reasons(info, runs, score, canary, lock) == []
+
+
+def test_max_model_len_certifies_from_1024_to_8192(tmp_path):
+    """rc.6 (D8): the host picks the context length; outside the range, or unset, does not certify."""
+    from kwh_bench.engines.base import EngineInfo
+    from kwh_bench.load import JobResult
+    from kwh_bench.report import certification_reasons
+    from kwh_bench.verify import verify_report
+    lock = _locked()
+    runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
+    score = score_runs([40.0, 40.0, 40.0])
+    canary = evaluate_canary({i: -1.0 for i in range(ref.CANARY_COUNT)}, lock)
+    info = EngineInfo(name="vllm", version="0.30.0", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess")
+    for args, want in ((["--max-model-len", "1024"], []), (["--max-model-len", "8192"], []), (["--max-model-len=4096"], []),
+                       (["--max-model-len", "16384"], ["--max-model-len 16384 outside the certified range 1024-8192"]),
+                       (["--max-model-len", "768"], ["--max-model-len 768 outside the certified range 1024-8192"]),
+                       ([], ["--max-model-len not set (certified range 1024-8192)"])):
+        info.launch_args = ["--model", ref.MODEL_ID, "--max-num-seqs", "32"] + args
+        assert certification_reasons(info, runs, score, canary, lock) == want, args
+    # verify catches a certified report whose launch args were edited outside the range
+    report = json.loads((Path(__file__).resolve().parent.parent / "results" / "a40-runpod.json").read_text())
+    args = report["engine"]["launch_args"]
+    args[args.index("--max-model-len") + 1] = "32768"
+    report["report_sha256"] = report_hash(report)
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps(report))
+    ok, problems = verify_report(p)
+    assert not ok and any("outside the certified range" in x for x in problems), problems
+
+
+def test_every_committed_report_verifies_under_the_current_rules():
+    from kwh_bench.verify import verify_report
+    root = Path(__file__).resolve().parent.parent / "results"
+    paths = sorted(root.glob("*.json")) + sorted((root / "uncertified").glob("*.json"))
+    assert len(paths) >= 6
+    for p in paths:
+        ok, problems = verify_report(p)
+        assert ok, (p.name, problems)

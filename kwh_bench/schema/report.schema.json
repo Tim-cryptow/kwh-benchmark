@@ -368,6 +368,20 @@
         },
         "max_delta": {
           "type": "number"
+        },
+        "rule": {
+          "type": "string",
+          "enum": [
+            "mean"
+          ],
+          "description": "rc.6+: the run passes on the mean of the canaries' deltas. Absent in older reports (per-canary count rule)."
+        },
+        "mean_delta": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Mean of the canaries' deltas; null unless every canary was scored."
         }
       }
     },

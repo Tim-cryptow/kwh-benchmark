@@ -1,6 +1,6 @@
 # kWh Grade I Unit Specification
 
-**Spec version:** 1.0.0-rc.5 (becomes 1.0.0 at lock, see §9)
+**Spec version:** 1.0.0-rc.6 (becomes 1.0.0 at lock, see §9)
 **Unit series:** `I-1`
 **Status:** Release candidate. Every number in this document is fixed except the fields listed in §9 (weight hashes, canary expectations, exact engine build), which are filled in by `kwh-bench lock` on the reference node before 1.0.0 is tagged.
 
@@ -45,7 +45,7 @@ Anything that changes the amount or kind of work in the reference job creates a 
 | Prefix caching | **disabled** in the engine | prompts also share no common prefix, so an engine that ignores the flag gains nothing |
 | Speculative decoding | **not permitted** | it changes the work done per token |
 | Chat template | **not applied** | prompts are raw token sequences fed to the completion endpoint. The reference job measures the model, not a chat wrapper. |
-| Context length | engine `max_model_len = 1024` | 512 + 256 = 768 fits with margin |
+| Context length | engine `max_model_len` from 1024 to 8192, the host's choice (§5) | 512 + 256 = 768 fits in any of them |
 
 A job is complete when all 256 requests have returned all 256 tokens. **Job wall time** is measured from the dispatch of the first request to the receipt of the last token of the last request, on the load generator's clock.
 
@@ -81,7 +81,7 @@ Rates are **certified** only when produced by an engine in the certified set for
 --model RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8
 --revision <lock.json: model.revision>
 --dtype auto
---max-model-len 1024
+--max-model-len <1024 to 8192, the host's choice; recorded in the report>
 --max-num-seqs 32
 --no-enable-prefix-caching
 --seed 0
@@ -89,6 +89,8 @@ Rates are **certified** only when produced by an engine in the certified set for
 ```
 
 Forbidden for certified runs: `--speculative-config` (any), `--enable-prefix-caching`, `--quantization` other than the checkpoint's own (`compressed-tensors`), tensor parallelism > 1 (I-1 is a single-device unit), any `--max-num-seqs` other than 32, and `--watermark-config` (any). A text watermark changes which token is sampled, so a watermarked engine's outputs stop matching the reference model's choices and cannot be verified against it.
+
+**Context length (rc.6).** The reference job needs 768 tokens, but a host serves buyers with the engine it certified, so the context length it benchmarks at is the longest request it can take. Any value from 1024 to 8192 certifies (`kwh-bench run --max-model-len N`, default 1024). It does not change the work or the rate: vLLM's batching defaults do not depend on it, and on an A40 the reference job ran at 60.230 units/hour at 1024 and 60.228 at 8192, in the same session. It can move the canary deltas (§7), which is why the host serves at the value it certified with. Outside the range, or unset, a report does not certify.
 
 Everything else (CUDA graphs, attention backend, chunked prefill) is the engine's default and is the host's to optimize within the pinned version. Optimizations that do less work per token are what the forbidden list excludes; optimizations that do the same work faster are the point.
 
@@ -125,11 +127,11 @@ The host does **not** have to reproduce the reference node's output. Greedy argm
 
 - 8 of the 256 prompts (IDs listed in `kwh_bench/reference/lock.json`) are canaries.
 - At lock time, for each canary, the reference node records the first 32 token IDs of its greedy continuation **and** the mean per-token log-probability it assigns to those 32 tokens under teacher forcing (`prompt_logprobs` on prompt + continuation).
-- At benchmark time, after the measured runs, the host computes the same teacher-forced mean log-probability for the same 32 tokens, one request at a time. A canary **passes** if `|host − reference| ≤ 0.05` nats.
-- The run **passes** the canary check if at least 6 of 8 canaries pass. Failure is reported as `canary: {passed: false}` and the result is `certified: false` with reason `canary`.
+- At benchmark time, after the measured runs, the host computes the same teacher-forced mean log-probability for the same 32 tokens, one request at a time. A canary's **delta** is `|host − reference|` in nats.
+- The run **passes** the canary check if all eight canaries were scored and the **mean of their deltas is ≤ 0.05** nats (rc.6; rc.3–rc.5 required six of eight canaries each within 0.05). Failure is reported as `canary: {passed: false}` and the result is `certified: false` with reason `canary`. Each canary's own `pass` (its delta within 0.05) is kept in the report for reading; it does not decide the run.
 - The report stores every canary's delta. `kwh-bench verify` re-derives pass/fail from the stored deltas under the tolerance in force, so a report scored under an earlier, looser tolerance is accepted only if it would also pass the current one.
 
-Why this works: the locked continuation is the reference model's own greedy path, and no other model finds those exact tokens as likely. Serving a different model, a different checkpoint or a coarser quantization moves the mean log-probability over 32 tokens by tenths of a nat; the kernel, card and configuration differences between certified hosts have moved it by 0.0000 on three cards (Ampere and Ada) and by up to 0.048 on a fourth (an A40, Ampere). The tolerance is calibrated during the rc phase: it must accept every certified card in `results/` and reject an FP16 or 4-bit variant of the base model. rc.2 used 0.10 and a 4-bit AWQ variant cleared it on five of eight canaries; rc.3 uses 0.05, which that variant fails 7/8. Calibration runs are recorded in `results/canary-calibration.md`.
+Why this works: the locked continuation is the reference model's own greedy path, and no other model finds those exact tokens as likely. Serving a different model, a different checkpoint or a coarser quantization moves the mean log-probability over 32 tokens by tenths of a nat; the kernel, card and configuration differences between certified hosts have moved it by 0.0000 on three cards (Ampere and Ada) and by up to 0.048 on a fourth (an A40, Ampere). The tolerance is calibrated during the rc phase: it must accept every certified card in `results/` and reject an FP16 or 4-bit variant of the base model. rc.2 used 0.10 and a 4-bit AWQ variant cleared it on five of eight canaries; rc.3 moved to 0.05, which that variant fails 7/8. The A40 then showed that per canary the two overlap: its worst honest canary (0.048) is above the variant's best (0.036). Their means do not overlap (0.023 against 0.108), so rc.6 judges the mean: one noisy canary no longer decides a run, and the margin is about 2× on either side of 0.05. Calibration runs are recorded in `results/canary-calibration.md`.
 
 Canary scoring happens outside the timed jobs and adds no work to the reference job. Uncertified engines skip the canary check and report `canary: null`.
 

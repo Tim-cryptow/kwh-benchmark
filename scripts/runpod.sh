@@ -38,5 +38,5 @@ mkdir -p results
 if [ "$DO_LOCK" = 1 ]; then
   kwh-bench lock --revision "$REVISION" --engine-log "results/vllm-lock-${GPU}.log"
 fi
-kwh-bench run --engine vllm --runs "$RUNS" --engine-log "results/vllm-run-${GPU}.log" --out "results/${GPU}-runpod.json"
+kwh-bench run --engine vllm --runs "$RUNS" --max-model-len "${MAX_MODEL_LEN:-1024}" --engine-log "results/vllm-run-${GPU}.log" --out "results/${GPU}-runpod.json"
 kwh-bench verify "results/${GPU}-runpod.json"

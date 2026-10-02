@@ -253,10 +253,12 @@ def calibration_row(rec: dict) -> str:
         span = f"{min(known):.4f}–{max(known):.4f}" if min(known) != max(known) else f"{known[0]:.4f} ×{len(known)}"
     else:
         span = "n/a"
+    from .report import canary_mean_delta
+    mean = canary_mean_delta(c["results"])
     model = rec["engine"]["model_id"] + ("" if rec["is_reference_model"] else " (control)")
     expect = "pass" if rec["is_reference_model"] else "fail"
     verdict = "PASS" if c["passed"] else "FAIL"
     ok = "as expected" if (c["passed"] == rec["is_reference_model"]) else "UNEXPECTED"
     date = rec["finished_at"][:10]
     return (f"| {date} | {arch} | {rec['engine']['name']} {rec['engine']['version'] or ''} | {model} | {span} "
-            f"| {c['passing']}/{len(c['results'])} {verdict} | expected {expect}: {ok} |")
+            f"| mean {'n/a' if mean is None else f'{mean:.4f}'} {verdict} | expected {expect}: {ok} |")
