@@ -1,0 +1,210 @@
+{
+  "spec": {
+    "series": "I-1",
+    "spec_version": "1.0.0-rc.5",
+    "bench_version": "1.0.0rc5"
+  },
+  "job": {
+    "requests": 256,
+    "prompt_tokens": 512,
+    "generated_tokens": 256,
+    "generated_tokens_per_job": 65536,
+    "concurrency": 32,
+    "sampling": {
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "seed": 0,
+      "max_tokens": 256,
+      "min_tokens": 256,
+      "ignore_eos": true
+    }
+  },
+  "engine": {
+    "name": "vllm",
+    "version": "0.30.0",
+    "model_id": "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8",
+    "model_revision": "024e24cbe4153670f747383ea3265d0fb197c727",
+    "launch_mode": "attached",
+    "launch_args": [],
+    "server_url": "http://127.0.0.1:8300",
+    "certified_engine": true,
+    "extra": {
+      "served_model": "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+    }
+  },
+  "hardware": {
+    "gpus": [
+      {
+        "name": "NVIDIA A40",
+        "vram_mib": 46068,
+        "driver_version": "580.159.03",
+        "pcie_gen": 4,
+        "pcie_width": 16,
+        "power_limit_w": 300.0,
+        "uuid": "GPU-3d40fcf9-6af4-aedf-e84f-f8575c109ba4",
+        "compute_capability": "8.6"
+      }
+    ],
+    "cuda_version": "13.0",
+    "cpu_model": "Intel(R) Xeon(R) Gold 6342 CPU @ 2.80GHz",
+    "cpu_cores_physical": 48,
+    "cpu_threads": 96,
+    "ram_gib": 503.5,
+    "os": "Linux 6.8.0-134-generic",
+    "platform": "Linux-6.8.0-134-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "kwh_bench": "1.0.0rc5",
+    "hostname_hash": "a489b24dfa6dc5b1"
+  },
+  "preflight": {
+    "available": true,
+    "seconds": 5.0,
+    "samples": 10,
+    "idle": false,
+    "reasons": [
+      "host_contention: only 13% of VRAM free before launch (40183 MiB in use by other processes), need 95%"
+    ],
+    "mem_total_mib": 46068,
+    "mem_used_mib_max": 40183,
+    "free_fraction_min": 0.1277,
+    "util_pct_mean": 0.0,
+    "util_pct_max": 0.0,
+    "power_w_mean": 114.0,
+    "thresholds": {
+      "max_util_pct": 5.0,
+      "min_free_fraction": 0.95
+    }
+  },
+  "warmup": {
+    "job_seconds": 59.7591,
+    "generated_tokens": 65536,
+    "tokens_per_second": 1096.67,
+    "request_failures": 0,
+    "ttft_p50_s": 0.79829,
+    "ttft_p95_s": 1.39584,
+    "tpot_p50_s": 0.02596,
+    "tpot_p95_s": 0.02782
+  },
+  "runs": [
+    {
+      "job_seconds": 59.7166,
+      "generated_tokens": 65536,
+      "tokens_per_second": 1097.45,
+      "request_failures": 0,
+      "ttft_p50_s": 0.81376,
+      "ttft_p95_s": 1.18868,
+      "tpot_p50_s": 0.02598,
+      "tpot_p95_s": 0.02787
+    },
+    {
+      "job_seconds": 59.784,
+      "generated_tokens": 65536,
+      "tokens_per_second": 1096.21,
+      "request_failures": 0,
+      "ttft_p50_s": 0.82122,
+      "ttft_p95_s": 1.27131,
+      "tpot_p50_s": 0.02599,
+      "tpot_p95_s": 0.02823
+    },
+    {
+      "job_seconds": 59.7727,
+      "generated_tokens": 65536,
+      "tokens_per_second": 1096.42,
+      "request_failures": 0,
+      "ttft_p50_s": 0.8065,
+      "ttft_p95_s": 1.1832,
+      "tpot_p50_s": 0.02614,
+      "tpot_p95_s": 0.02789
+    }
+  ],
+  "score": {
+    "median_job_seconds": 59.7727,
+    "min_job_seconds": 59.7166,
+    "max_job_seconds": 59.784,
+    "stability": 0.00113,
+    "units_per_hour": 60.228,
+    "mean_power_watts": 297.1,
+    "units_per_electric_kwh": 202.72
+  },
+  "canary": {
+    "passed": true,
+    "passing": 8,
+    "required": 6,
+    "max_delta": 0.05,
+    "results": [
+      {
+        "prompt_id": 16,
+        "mean_logprob": -1.14786,
+        "reference_mean_logprob": -1.16552,
+        "delta": 0.01766,
+        "pass": true
+      },
+      {
+        "prompt_id": 48,
+        "mean_logprob": -1.13041,
+        "reference_mean_logprob": -1.11244,
+        "delta": 0.01797,
+        "pass": true
+      },
+      {
+        "prompt_id": 80,
+        "mean_logprob": -1.38242,
+        "reference_mean_logprob": -1.34789,
+        "delta": 0.03453,
+        "pass": true
+      },
+      {
+        "prompt_id": 112,
+        "mean_logprob": -1.2346,
+        "reference_mean_logprob": -1.24528,
+        "delta": 0.01068,
+        "pass": true
+      },
+      {
+        "prompt_id": 144,
+        "mean_logprob": -1.18023,
+        "reference_mean_logprob": -1.16678,
+        "delta": 0.01345,
+        "pass": true
+      },
+      {
+        "prompt_id": 176,
+        "mean_logprob": -1.18385,
+        "reference_mean_logprob": -1.17662,
+        "delta": 0.00723,
+        "pass": true
+      },
+      {
+        "prompt_id": 208,
+        "mean_logprob": -1.58949,
+        "reference_mean_logprob": -1.5939,
+        "delta": 0.00441,
+        "pass": true
+      },
+      {
+        "prompt_id": 240,
+        "mean_logprob": -1.60239,
+        "reference_mean_logprob": -1.60078,
+        "delta": 0.00161,
+        "pass": true
+      }
+    ]
+  },
+  "power": {
+    "available": true,
+    "samples": 171,
+    "mean_watts": 297.1,
+    "energy_wh": 14.724
+  },
+  "certified": false,
+  "certified_reasons": [
+    "host_contention: only 13% of VRAM free before launch (40183 MiB in use by other processes), need 95%",
+    "attached: engine configuration not launched by kwh-bench, unverifiable"
+  ],
+  "prompt_set_sha256": "b7ba17276b1f7346dd30db000416bae68c34c23757045ded93b31ff86303c534",
+  "lock_sha256": "bb601596a03798d9eca09c88ff8a0a3fbe21c2ad6b8b4105cd9e93f511f7d0c5",
+  "started_at": "2026-10-02T11:46:35Z",
+  "finished_at": "2026-10-02T11:50:41Z",
+  "report_sha256": "f99388a1055880f759887767ee20e8d2d754a5ece12b8aa054dccee2c6ea77b3",
+  "signature": null
+}

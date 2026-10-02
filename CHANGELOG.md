@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- A40 certified row: **60.19 units/hour**, stability 0.0016, 296 W, 203 units per electric kWh (`results/a40-runpod.json`), produced through the host client and carrying its signature. The first certified card with nonzero canary deltas: 0.005–0.048, eight of eight inside 0.05. `results/canary-calibration.md` records what that means for the tolerance and proposes judging the mean delta in the next rc; SPEC.md §7's rationale now says so. The rule and the tolerance are unchanged.
+- Two attached A40 runs (`results/uncertified/a40-attached-mml1024.json`, `a40-attached-mml8192.json`) for the host client's open question D8: the reference job's rate at `--max-model-len 8192` matches the rate at 1024 (60.228 against 60.230 units/hour), while every canary delta moves.
+
 ## 1.0.0-rc.5 — 2026-10-02
 
 - `--watermark-config` joins the forbidden flags (SPEC.md §5). vLLM 0.30.0 can apply a text watermark (a keyed Gumbel sampler) when the engine is launched with a watermark config; it is off by default and changes no work, but it changes which token is chosen. The host client verifies delivered greedy outputs by scoring them under the reference model, and a watermarked engine's outputs would fail that check while being honestly produced. Not to be confused with `--watermark`, the scheduler's KV-cache headroom, which stays allowed.
