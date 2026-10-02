@@ -15,11 +15,13 @@ import httpx
 
 
 class ServerProcess:
-    def __init__(self, argv: List[str], health_url: str, log_path: Optional[str] = None, env: Optional[dict] = None):
+    def __init__(self, argv: List[str], health_url: str, log_path: Optional[str] = None, env: Optional[dict] = None,
+                 uds: Optional[str] = None):
         self.argv = argv
         self.health_url = health_url
         self.log_path = log_path
         self.env = env
+        self.uds = uds                      # health checks go over this Unix socket when set
         self.proc: Optional[subprocess.Popen] = None
         self._log = None
 
@@ -33,7 +35,7 @@ class ServerProcess:
             env={**os.environ, **(self.env or {})},
             start_new_session=True,
         )
-        await wait_healthy(self.health_url, timeout_s, self.proc)
+        await wait_healthy(self.health_url, timeout_s, self.proc, uds=self.uds)
 
     async def stop(self) -> None:
         if self.proc and self.proc.poll() is None:
@@ -52,9 +54,11 @@ class ServerProcess:
             self._log = None
 
 
-async def wait_healthy(url: str, timeout_s: float, proc: Optional[subprocess.Popen] = None) -> None:
+async def wait_healthy(url: str, timeout_s: float, proc: Optional[subprocess.Popen] = None,
+                       uds: Optional[str] = None) -> None:
     deadline = time.monotonic() + timeout_s
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    transport = httpx.AsyncHTTPTransport(uds=uds) if uds else None
+    async with httpx.AsyncClient(timeout=5.0, transport=transport) as client:
         while time.monotonic() < deadline:
             if proc is not None and proc.poll() is not None:
                 raise RuntimeError(f"engine process exited early with code {proc.returncode}")

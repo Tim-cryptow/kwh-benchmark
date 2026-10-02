@@ -148,3 +148,40 @@ async def test_score_continuation_reads_prompt_logprobs(engine):
     req = SEEN["completion"]
     assert req["prompt"] == [1, 2, 3, 10, 20] and req["prompt_logprobs"] == 0 and req["max_tokens"] == 1
     assert lps == [-0.01, -0.02]
+
+
+async def test_engine_over_a_unix_socket(tmp_path):
+    """`uds`: every call, health checks included, goes over the socket (an engine with no network)."""
+    uvicorn = pytest.importorskip("uvicorn")
+    sock = tmp_path / "engine.sock"
+    server = uvicorn.Server(uvicorn.Config(fake_app, uds=str(sock), log_level="error", lifespan="off", ws="none"))
+    task = asyncio.create_task(server.serve())
+    for _ in range(500):
+        if server.started:
+            break
+        await asyncio.sleep(0.01)
+    try:
+        e = VLLMEngine(server_url="http://engine", uds=str(sock))
+        async with e:
+            assert (await e.info()).version == "0.10.1"
+            assert await e.tokenize("a b c") == [0, 1, 2, 3, 4, 5]
+            c = await e.complete([1, 2, 3], 4, want_token_ids=True)
+            assert c.token_ids == [1000, 1001, 1002, 1003] and c.completion_tokens == 4
+            async with e.http_client() as h:
+                assert (await h.get("/health")).status_code == 200
+    finally:
+        server.should_exit = True
+        await task
+
+
+def test_socket_engine_argv_listens_on_the_socket_not_a_port():
+    e = VLLMEngine(revision="deadbeef", uds="/run/kwh/engine.sock")
+    assert e.base_url == "http://engine"
+    try:
+        argv = e.build_argv()
+    except FileNotFoundError:
+        pytest.skip("no vllm binary or module on PATH")
+    joined = " ".join(argv)
+    assert "--uds /run/kwh/engine.sock" in joined and "--port" not in joined and "--host" not in joined
+    with pytest.raises(ValueError):
+        VLLMEngine(docker_image="vllm/vllm-openai:test", uds="/tmp/x.sock").build_argv()

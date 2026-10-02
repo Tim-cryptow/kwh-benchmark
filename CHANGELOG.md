@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (tool only; the spec is unchanged)
+
+- `VLLMEngine(uds=...)` reaches the server over a Unix socket instead of TCP, health checks included, and launches `vllm serve --uds` in subprocess mode. The host client's sandbox uses it to run the certified engine with no network at all. `make_transport()` and `http_client()` give other code the same route to the engine. The dev extra gains uvicorn for the socket test.
+
 ## 1.0.0-rc.6 — 2026-10-02
 
 - **Context length is the host's choice, 1024 to 8192** (SPEC.md §5). `kwh-bench run --max-model-len N`, default 1024; the value is in the report's launch args and anything outside the range, or unset, does not certify. The job, and so the unit, are unchanged: two attached A40 runs in the same session ran the reference job at 60.230 units/hour at 1024 and 60.228 at 8192 (`results/uncertified/a40-attached-mml1024.json`, `a40-attached-mml8192.json`). A host serves at the value it certified with, so buyers' requests can be up to 8,192 tokens instead of 1,024. Settles the host client's D8.

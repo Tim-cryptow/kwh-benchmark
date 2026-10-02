@@ -8,6 +8,9 @@ Endpoints used:
 
 Token ids for canary requests come back via `logprobs=0` +
 `return_tokens_as_token_ids=true` (tokens appear as "token_id:N" strings).
+
+With `uds` set, every request goes over that Unix socket instead of TCP (vLLM's
+`--uds`), so an engine can be served with no network at all.
 Non-canary requests carry no logprobs; their token count comes from the
 final `usage` chunk (stream_options.include_usage).
 """
@@ -40,6 +43,7 @@ class VLLMEngine(Engine):
         log_path: Optional[str] = None,
         hf_cache: Optional[str] = None,
         max_model_len: int = ref.MAX_MODEL_LEN,
+        uds: Optional[str] = None,
     ):
         self.model = model
         self.revision = revision
@@ -49,24 +53,39 @@ class VLLMEngine(Engine):
         self.extra_args = list(extra_args or [])
         self.log_path = log_path
         self.hf_cache = hf_cache
+        self.uds = uds
         self.attached = server_url is not None
-        self.base_url = (server_url or f"http://127.0.0.1:{port}").rstrip("/")
+        default_url = "http://engine" if uds else f"http://127.0.0.1:{port}"
+        self.base_url = (server_url or default_url).rstrip("/")
         self._proc: Optional[ServerProcess] = None
         self._client: Optional[httpx.AsyncClient] = None
         self._launch_argv: List[str] = []
         self._served_model: Optional[str] = None
+
+    # -- transport -----------------------------------------------------
+
+    def make_transport(self) -> Optional[httpx.AsyncBaseTransport]:
+        """A fresh transport for one client: the Unix socket when set, else httpx's default."""
+        return httpx.AsyncHTTPTransport(uds=self.uds) if self.uds else None
+
+    def http_client(self, timeout: float | httpx.Timeout = 30.0) -> httpx.AsyncClient:
+        """An HTTP client for this engine's server, however it is reached."""
+        return httpx.AsyncClient(base_url=self.base_url, transport=self.make_transport(), timeout=timeout)
 
     # -- lifecycle -----------------------------------------------------
 
     def _server_args(self) -> List[str]:
         """Flags common to every launch form (model is added per form: positional for
         `vllm serve` and the Docker image entrypoint, `--model` for the module form)."""
-        args = ref.vllm_args(self.max_model_len) + ["--port", str(self.port), "--host", "0.0.0.0"]
+        listen = ["--uds", self.uds] if self.uds else ["--port", str(self.port), "--host", "0.0.0.0"]
+        args = ref.vllm_args(self.max_model_len) + listen
         if self.revision:
             args += ["--revision", self.revision]
         return args + self.extra_args
 
     def build_argv(self) -> List[str]:
+        if self.docker_image and self.uds:
+            raise ValueError("this launcher serves Docker engines over TCP; a socket engine in Docker needs its own launcher")
         if self.docker_image:
             # vllm/vllm-openai's entrypoint is `vllm serve`; the model is positional.
             volumes = []
@@ -84,14 +103,14 @@ class VLLMEngine(Engine):
             return which_or_module("vllm", "vllm.entrypoints.openai.api_server") + ["--model", self.model] + self._server_args()
 
     async def start(self) -> None:
-        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(600.0, connect=10.0))
+        self._client = self.http_client(httpx.Timeout(600.0, connect=10.0))
         if not self.attached:
             self._launch_argv = self.build_argv()
-            self._proc = ServerProcess(self._launch_argv, f"{self.base_url}/health", log_path=self.log_path)
+            self._proc = ServerProcess(self._launch_argv, f"{self.base_url}/health", log_path=self.log_path, uds=self.uds)
             await self._proc.start()
         else:
             from .launcher import wait_healthy
-            await wait_healthy(f"{self.base_url}/health", timeout_s=30)
+            await wait_healthy(f"{self.base_url}/health", timeout_s=30, uds=self.uds)
         # Resolve served model name (may differ from the HF id when --served-model-name is used).
         r = await self._client.get("/v1/models")
         r.raise_for_status()
