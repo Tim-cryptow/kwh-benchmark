@@ -7,11 +7,14 @@ Reports here must pass `kwh-bench verify`. Only certified reports enter the tabl
 | GPU | Cloud | Engine | units/hour | median job (s) | stability | mean W | units per electric kWh | TPOT p50 | certified | report |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | NVIDIA GeForce RTX 4090 (24 GB, Ada) | RunPod Community | vLLM 0.30.0 | **100.56** | 35.80 | 0.0028 | 319.4 | 314.8 | 16.5 ms | yes | [rtx-4090-runpod.json](rtx-4090-runpod.json) |
+| NVIDIA GeForce RTX 4090 (24 GB, Ada) | Vast.ai VM (Chile), host client sandbox | vLLM 0.30.0, Docker | **101.51** | 35.47 | 0.0016 | 321.6 | 315.6 | 16.3 ms | yes | [rtx-4090-vast-sandbox.json](rtx-4090-vast-sandbox.json) |
 | NVIDIA GeForce RTX 3090 (24 GB, Ampere) | RunPod Community | vLLM 0.30.0 | **78.29** | 45.98 | 0.0199 | 347.3 | 225.4 | 20.3 ms | yes | [rtx-3090-runpod.json](rtx-3090-runpod.json) |
 | NVIDIA RTX A5000 (24 GB, Ampere) | RunPod Secure CA-MTL-1 | vLLM 0.30.0 | **65.10** | 55.30 | 0.0047 | 228.7 | 284.6 | 23.2 ms | yes | [a5000-runpod.json](a5000-runpod.json) |
 | NVIDIA A40 (48 GB, Ampere) | RunPod Secure EU-SE-1 | vLLM 0.30.0 | **60.19** | 59.81 | 0.0016 | 296.4 | 203.1 | 26.5 ms | yes | [a40-runpod.json](a40-runpod.json) |
 
 The A5000 is also the reference node for the I-1 lock (`reference/lock.json`, locked 2026-09-26T07:12Z). The 4090 is the first consumer card in the table and the first cross-architecture datapoint: its canaries scored the locked continuations to the same five decimals as the Ampere reference node (delta 0.0000 on all eight). The A40, a datacenter card that is in the table only because no 3090 or 4090 was free when the host client's M2 run needed one, is the first card whose canaries did not match to five decimals: 0.005–0.048, mean 0.023 against rc.6's 0.05 ([canary-calibration.md](canary-calibration.md)).
+
+The second RTX 4090 row ran inside the host client's engine sandbox on a rented VM ([kwh-host M3](https://github.com/Tim-cryptow/kwh-host/tree/main/results/m3-vast-4090-2026-10-05), 2026-10-05): Docker with no network, a read-only root filesystem, no capabilities and an ordinary uid. It scored 101.51 units/hour, against 100.56 for the bare-metal RunPod run of the same card model, at the same units per kWh, so the sandbox costs nothing measurable. Its canaries again matched the lock to five decimals. It is the first certified report from the Docker launch mode (`engine.launch_mode: docker`); every earlier row ran the engine as a subprocess.
 
 Target for 1.0.0: at least three consumer cards (RTX 3090, RTX 4090, RTX 5090). The 3090 and 4090 rows are in; the 5090 row follows as RunPod community capacity allows.
 

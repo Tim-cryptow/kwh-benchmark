@@ -6,7 +6,7 @@
 - **VERSIONING.md** — what changes the unit (a new series) versus what does not, and the reference-model deprecation policy.
 - **kwh_bench/** — the benchmark tool (`kwh-bench`).
 - **kwh_bench/reference/lock.json** — weight hashes, engine build and canary expectations. Filled by `kwh-bench lock` on the reference node (RTX A5000, 2026-09-26).
-- **results/** — the published units/hour table (RTX 4090: 100.56, RTX 3090: 78.29, RTX A5000: 65.10, A40: 60.19) and the canary calibration evidence.
+- **results/** — the published units/hour table (RTX 4090: 100.56 bare metal, 101.51 in the host client's Docker sandbox; RTX 3090: 78.29; RTX A5000: 65.10; A40: 60.19) and the canary calibration evidence.
 
 ## The unit in one table
 

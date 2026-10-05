@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased (tool only; the spec is unchanged)
+## Unreleased (the spec is unchanged)
 
+- Second RTX 4090 row: **101.51 units/hour**, stability 0.0016, 321.6 W, 315.6 units per electric kWh, canary mean delta 0.0000 (`results/rtx-4090-vast-sandbox.json`). Produced by the host client inside its Docker sandbox on a rented Vast.ai VM: no network, read-only root, no capabilities, an ordinary uid. The bare-metal RunPod 4090 scored 100.56, so the sandbox costs nothing measurable. It is the first certified report from the Docker launch mode.
 - `VLLMEngine(uds=...)` reaches the server over a Unix socket instead of TCP, health checks included, and launches `vllm serve --uds` in subprocess mode. The host client's sandbox uses it to run the certified engine with no network at all. `make_transport()` and `http_client()` give other code the same route to the engine. The dev extra gains uvicorn for the socket test.
 
 ## 1.0.0-rc.6 — 2026-10-02
