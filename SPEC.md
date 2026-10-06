@@ -105,7 +105,7 @@ The Docker path uses the official `vllm/vllm-openai` image at the pinned tag; `s
 2. **Launch** the engine with the pinned configuration (or attach, uncertified).
 3. **Prepare** the prompt set: verify `PROMPT_SET_SHA256`, tokenize, truncate to 512 IDs.
 4. **Warm-up:** one complete reference job, discarded. This absorbs model load, CUDA graph capture, kernel autotuning and memory allocation.
-5. **Measured runs:** `N` complete reference jobs back to back, default `N = 3`, minimum 3 for a certified result. Between runs there is no pause; a rig that throttles thermally shows it here.
+5. **Measured runs:** `N` complete reference jobs back to back, default `N = 3`, minimum 3 for a certified result. Between runs there is no pause; a rig that throttles thermally shows it here. The measured runs are timed on two clocks (rc.7): the timer the jobs are timed with, and the wall clock.
 6. **Power sampling** at 1 Hz throughout the measured runs, when the platform exposes it (`nvidia-smi` power draw), integrated to watt-hours.
 7. **Canary check** (§7): score the locked continuations, one request at a time, after the measured runs.
 8. **Report** (§8), schema-validated, hashed.
@@ -116,6 +116,7 @@ The Docker path uses the official `vllm/vllm-openai` image at the pinned tag; `s
 - **`units_per_hour = 3600 / median(job_seconds)`**. The median is robust to one bad run; the mean is not.
 - A certified result requires the pre-flight to have been idle (step 0) when the platform can measure it.
 - `stability = (max − min) / median` over measured runs. A certified result requires `stability ≤ 0.10`. Above that, the result is reported with `certified: false` and reason `unstable`; the host should fix cooling or background load and rerun.
+- **The two clocks must agree** (rc.7): over the measured runs, `|timer − wall| ≤ max(1% of wall, 2 s)`. Otherwise `certified: false` with reason `clock`. Every rate is work divided by time, so a machine whose timer runs slow overstates units per hour, and understates energy, which overstates units per kWh. Under WSL2 on a Windows laptop the timer ran about 5% slow, and the wall clock was pulled back to Windows' time by a jump of about 2 seconds every half minute (the host client's `results/wsl-windows11-2026-10-06`). The 2-second floor keeps one such jump from failing a short run. A host whose clocks disagree fixes the machine's clock and reruns; the rate is not corrected for it.
 - Per-request latency is recorded per run: time to first token (TTFT) and time per output token (TPOT, i.e. `(last_token_time − first_token_time) / 255`), with p50 and p95 across the 256 requests. These are reported for bucketing and routing; I-1 imposes no latency SLO on certification. A later spec version may.
 - `units_per_electric_kwh = units_per_hour / (mean_power_watts / 1000)` when power sampling succeeded; otherwise `null`. This is the number the host dashboard puts next to the host's electricity price.
 
@@ -149,13 +150,14 @@ Canary scoring happens outside the timed jobs and adds no work to the reference 
 | `runs` | per measured run: job_seconds, tokens_per_second, TTFT p50/p95, TPOT p50/p95, request failures |
 | `score` | `units_per_hour`, `median_job_seconds`, `stability`, `units_per_electric_kwh`, `mean_power_watts` |
 | `canary` | passed flag, per-canary host/reference mean log-probabilities and deltas, or `null` |
+| `clock` | the measured runs on both clocks: `timer_seconds`, `wall_seconds`, `drift_pct` (rc.7; absent from earlier reports) |
 | `certified` | boolean; `certified_reasons` lists every failing condition when false |
 | `prompt_set_sha256` | must equal `PROMPT_SET_SHA256` |
 | `started_at`, `finished_at` | UTC ISO-8601 |
 | `report_sha256` | SHA-256 of the canonical JSON of the report with this field and `signature` set to null |
 | `signature` | reserved, `null` in step 1; the host client (step 2) signs `report_sha256` with the host key |
 
-`kwh-bench verify <report.json>` re-validates the schema, recomputes `units_per_hour`, `stability` and `report_sha256`, checks the prompt-set hash and, for reports claiming certification, checks every certified-run condition. It is what the platform runs on ingest.
+`kwh-bench verify <report.json>` re-validates the schema, recomputes `units_per_hour`, `stability` and `report_sha256`, checks the prompt-set hash and, for reports claiming certification, checks every certified-run condition. The clock condition applies to reports made under rc.7 or later, which must carry a `clock`; earlier reports predate it. It is what the platform runs on ingest.
 
 ## 9. Lock procedure (rc → 1.0.0)
 

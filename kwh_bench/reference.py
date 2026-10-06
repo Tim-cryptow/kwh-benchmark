@@ -9,7 +9,7 @@ from __future__ import annotations
 # --- Identity -------------------------------------------------------------
 
 SERIES = "I-1"
-SPEC_VERSION = "1.0.0-rc.6"
+SPEC_VERSION = "1.0.0-rc.7"
 
 # --- SERIES-DEFINING: the work (SPEC.md §2-§5) ---------------------------
 
@@ -49,6 +49,12 @@ MIN_MEASURED_JOBS = 3
 DEFAULT_MEASURED_JOBS = 3
 MAX_STABILITY = 0.10                     # (max - min) / median across measured runs
 POWER_SAMPLE_HZ = 1.0
+# rc.7: the measured runs are timed twice, on the timer the jobs use and on the wall clock, and the two
+# must agree. A machine whose timer drifts from real time misstates every rate it measures: under WSL2 on
+# a Windows laptop the timer ran about 5% slow, the wall clock being pulled back to Windows' time in jumps.
+MAX_CLOCK_DRIFT = 0.01                   # |timer - wall| / wall over the measured runs
+CLOCK_DRIFT_FLOOR_SECONDS = 2.0          # one clock correction alone can be this large; never fail below it
+CLOCK_CHECK_SINCE = "1.0.0-rc.7"         # reports from earlier spec versions predate the check
 
 # --- Canary (SPEC.md §7) -------------------------------------------------
 # The host does not reproduce the reference continuation (greedy argmax is

@@ -72,9 +72,9 @@ Two things learned on community pods, both handled by the script: hosts whose dr
 
 ## What "certified" means
 
-A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, a context length from 1024 to 8192, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, and the canary check passed (the mean of the eight canaries' deltas within 0.05 nats). `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.
+A report is certified when every condition in SPEC.md §5–§7 holds: launched by `kwh-bench` on the certified engine at the locked version and checkpoint revision, no forbidden flags, a context length from 1024 to 8192, ≥ 3 measured runs within the stability bound, exactly 65,536 tokens per job with no request failures, the machine's timer agreeing with its wall clock over the measured runs (rc.7), and the canary check passed (the mean of the eight canaries' deltas within 0.05 nats). `certified_reasons` lists every failing condition when it is false. Uncertified numbers are still useful; they are just not a rate the exchange will mint against.
 
-## Status: release candidate (rc.6)
+## Status: release candidate (rc.7)
 
 The lock is complete and reports certify. Left before `v1.0.0` (SPEC.md §9):
 

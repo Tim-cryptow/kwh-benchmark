@@ -414,6 +414,33 @@
         }
       }
     },
+    "clock": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "rc.7: the measured runs timed on the jobs' timer and on the wall clock (SPEC.md §6).",
+      "additionalProperties": false,
+      "required": [
+        "timer_seconds",
+        "wall_seconds",
+        "drift_pct"
+      ],
+      "properties": {
+        "timer_seconds": {
+          "type": "number"
+        },
+        "wall_seconds": {
+          "type": "number"
+        },
+        "drift_pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
     "certified": {
       "type": "boolean"
     },

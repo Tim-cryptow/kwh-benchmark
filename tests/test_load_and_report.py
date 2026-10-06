@@ -171,6 +171,11 @@ async def test_full_mock_run_produces_valid_unverifiable_report(tmp_path, fast_e
     assert all(r["generated_tokens"] == ref.GENERATED_TOKENS_PER_JOB for r in report["runs"])
     assert report["report_sha256"] == report_hash(report)
     assert report["canary"] is None  # mock is not a certified engine
+    # rc.7: the measured runs were timed on both clocks, and on this machine they agree
+    from kwh_bench.report import clock_problem
+    assert report["clock"]["timer_seconds"] > 0 and report["clock"]["wall_seconds"] > 0
+    assert clock_problem(report["clock"]) is None
+    assert not any(r.startswith("clock:") for r in report["certified_reasons"])
 
     p = tmp_path / "r.json"
     p.write_text(json.dumps(report))
@@ -254,3 +259,55 @@ def test_every_committed_report_verifies_under_the_current_rules():
     for p in paths:
         ok, problems = verify_report(p)
         assert ok, (p.name, problems)
+
+
+def test_clock_rule():
+    """rc.7: the jobs' timer and the wall clock must agree over the measured runs."""
+    from kwh_bench.report import clock_problem, measure_clock, spec_at_least
+    assert clock_problem(None) is None                                  # not measured: not judged here
+    assert clock_problem(measure_clock(0, 0, 600.0, 604.0)) is None     # 0.7%: inside 1%
+    assert clock_problem(measure_clock(0, 0, 30.0, 31.8)) is None       # 6%, but one clock jump on a short run
+    wsl = measure_clock(0, 0, 285.0, 300.0)                             # WSL2 on the test laptop: about 5% slow
+    assert wsl["drift_pct"] == -5.0
+    assert "(5.0% slow)" in clock_problem(wsl)
+    assert "(3.3% fast)" in clock_problem(measure_clock(0, 0, 310.0, 300.0))
+    assert "did not move forward" in clock_problem(measure_clock(0, 10.0, 300.0, 5.0))
+    assert spec_at_least("1.0.0-rc.7", "1.0.0-rc.7") and spec_at_least("1.0.0-rc.12", "1.0.0-rc.7")
+    assert spec_at_least("1.0.0", "1.0.0-rc.7") and spec_at_least("1.1.0-rc.1", "1.0.0")
+    assert not spec_at_least("1.0.0-rc.6", "1.0.0-rc.7") and not spec_at_least("nonsense", "1.0.0-rc.7")
+
+
+def test_clock_drift_blocks_certification():
+    from kwh_bench.engines.base import EngineInfo
+    from kwh_bench.load import JobResult
+    from kwh_bench.report import certification_reasons, measure_clock
+    lock = _locked()
+    info = EngineInfo(name="vllm", version="0.30.0", model_id=ref.MODEL_ID, model_revision="abc", launch_mode="subprocess",
+                      launch_args=["--model", ref.MODEL_ID, "--max-model-len", "1024", "--max-num-seqs", "32"])
+    runs = [JobResult(job_seconds=40.0, records=[], generated_tokens=ref.GENERATED_TOKENS_PER_JOB, failures=0) for _ in range(3)]
+    score = score_runs([40.0, 40.0, 40.0])
+    canary = evaluate_canary({i: -1.0 for i in range(ref.CANARY_COUNT)}, lock)
+    assert certification_reasons(info, runs, score, canary, lock, clock=measure_clock(0, 0, 120.0, 120.4)) == []
+    reasons = certification_reasons(info, runs, score, canary, lock, clock=measure_clock(0, 0, 114.0, 120.0))
+    assert len(reasons) == 1 and reasons[0].startswith("clock: the timer measured 114.0 s"), reasons
+
+
+def test_verify_requires_the_clock_from_rc7(tmp_path):
+    """Certified reports from rc.7 on must carry a clock that agrees; earlier reports predate the rule."""
+    from kwh_bench.report import measure_clock
+    report = json.loads((Path(__file__).resolve().parent.parent / "results" / "a40-runpod.json").read_text())
+    assert report["certified"] and "clock" not in report
+    p = tmp_path / "r.json"
+
+    def check(r):
+        r["report_sha256"] = report_hash(r)
+        p.write_text(json.dumps(r))
+        return verify_report(p)
+
+    assert check(dict(report)) == (True, [])                            # rc.6: no clock, still valid
+    r7 = dict(report, spec=dict(report["spec"], spec_version="1.0.0-rc.7"))
+    ok, problems = check(dict(r7))
+    assert not ok and any("without the clock check" in x for x in problems), problems
+    assert check(dict(r7, clock=measure_clock(0, 0, 120.0, 120.3))) == (True, [])
+    ok, problems = check(dict(r7, clock=measure_clock(0, 0, 114.0, 120.0)))
+    assert not ok and any("failing the clock" in x for x in problems), problems

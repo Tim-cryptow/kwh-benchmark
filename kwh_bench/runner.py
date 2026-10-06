@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -15,7 +16,7 @@ from .hardware import HostContentionError, PowerSampler, preflight_gpu, probe
 from .load import JobResult, PreparedPrompt, prepare_prompts, run_job
 from .lockfile import Canary, Lock, default_canary_ids, load_lock, save_lock
 from .prompts import canonical_prompts, load_prompt_file, sha256_text, to_jsonl
-from .report import build_report, now_iso
+from .report import build_report, clock_problem, measure_clock, now_iso
 
 Log = Callable[[str], None]
 
@@ -69,13 +70,19 @@ async def run_benchmark(
         sampler = PowerSampler(hz=ref.POWER_SAMPLE_HZ)
         await sampler.start()
         runs: List[JobResult] = []
+        # SPEC.md §6 (rc.7): the measured runs on two clocks, the jobs' timer and the wall clock.
+        timer0, wall0 = time.perf_counter(), time.time()
         try:
             for i in range(measured_jobs):
                 res = await run_job(engine, prepared, concurrency=concurrency)
                 runs.append(res)
                 log(f"  run {i + 1}/{measured_jobs}  {res.job_seconds:.2f}s  {res.tokens_per_second:.0f} tok/s  failures={res.failures}")
         finally:
+            timer1, wall1 = time.perf_counter(), time.time()
             trace = await sampler.stop()
+        clock = measure_clock(timer0, wall0, timer1, wall1)
+        log(f"  clock: timer {clock['timer_seconds']:.1f}s, wall clock {clock['wall_seconds']:.1f}s"
+            + (f"  -> {clock_problem(clock)}" if clock_problem(clock) else ""))
 
         # Canary: score the locked continuations (SPEC.md §7). Outside the timed jobs.
         canary_scores = {}
@@ -94,6 +101,7 @@ async def run_benchmark(
         started_at=started_at,
         canary_scores=canary_scores,
         preflight=preflight,
+        clock=clock,
     )
 
 

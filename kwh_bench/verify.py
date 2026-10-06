@@ -11,7 +11,7 @@ import jsonschema
 
 from . import reference as ref
 from .lockfile import Lock, load_lock, lock_sha256
-from .report import canary_mean_delta, load_schema, max_model_len_problem, report_hash
+from .report import canary_mean_delta, clock_problem, load_schema, max_model_len_problem, report_hash, spec_at_least
 
 
 def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]]:
@@ -105,6 +105,12 @@ def verify_report(path: Path, lock: Lock | None = None) -> Tuple[bool, List[str]
             elif mean > tol:
                 problems.append(f"canary mean delta {mean} exceeds the current tolerance {tol} nats "
                                 f"(report was scored under spec {report['spec']['spec_version']})")
+        if spec_at_least(report["spec"]["spec_version"], ref.CLOCK_CHECK_SINCE):
+            clk = report.get("clock")
+            if clk is None:
+                problems.append(f"certified report without the clock check (required since {ref.CLOCK_CHECK_SINCE})")
+            elif clock_problem(clk):
+                problems.append(f"certified report failing the {clock_problem(clk)}")
         pf = report.get("preflight")
         if pf and pf.get("available") and pf.get("idle") is False:
             problems.append("certified report with a non-idle pre-flight (host contention)")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -110,10 +111,48 @@ def max_model_len_problem(args: List[str]) -> Optional[str]:
     return None
 
 
+# --- the clock (SPEC.md §6, rc.7) --------------------------------------------
+
+def measure_clock(timer0: float, wall0: float, timer1: float, wall1: float) -> dict:
+    """The measured runs on two clocks: the timer the jobs are timed with, and the wall clock."""
+    timer, wall = timer1 - timer0, wall1 - wall0
+    return {"timer_seconds": round(timer, 3), "wall_seconds": round(wall, 3),
+            "drift_pct": round((timer / wall - 1.0) * 100.0, 3) if wall > 0 else None}
+
+
+def clock_problem(clock: Optional[dict]) -> Optional[str]:
+    """Reason the timer cannot be trusted to time a certified run, else None (also None when not measured)."""
+    if clock is None:
+        return None
+    timer, wall = clock.get("timer_seconds"), clock.get("wall_seconds")
+    if not isinstance(timer, (int, float)) or not isinstance(wall, (int, float)) or wall <= 0:
+        return "clock: the wall clock did not move forward during the measured runs"
+    off = timer - wall
+    if abs(off) > max(ref.MAX_CLOCK_DRIFT * wall, ref.CLOCK_DRIFT_FLOOR_SECONDS):
+        return (f"clock: the timer measured {timer:.1f} s while the wall clock moved {wall:.1f} s "
+                f"({abs(off) / wall:.1%} {'slow' if off < 0 else 'fast'}); a run timed on this clock "
+                f"would misstate the rate")
+    return None
+
+
+def _spec_key(version: str) -> Optional[tuple]:
+    m = re.match(r"^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$", version or "")
+    if not m:
+        return None
+    major, minor, patch, rc = m.groups()
+    return int(major), int(minor), int(patch), int(rc) if rc is not None else float("inf")
+
+
+def spec_at_least(version: str, floor: str) -> bool:
+    """True when `version` (1.0.0-rc.N or 1.0.0) is `floor` or later; a release is later than its candidates."""
+    a, b = _spec_key(version), _spec_key(floor)
+    return a is not None and b is not None and a >= b
+
+
 # --- certification ------------------------------------------------------
 
 def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict, canary: Optional[dict], lock: Lock,
-                          preflight: Optional[dict] = None) -> List[str]:
+                          preflight: Optional[dict] = None, clock: Optional[dict] = None) -> List[str]:
     reasons: List[str] = []
     if preflight and preflight.get("available") and preflight.get("idle") is False:
         reasons.extend(preflight.get("reasons") or ["host_contention: GPU not idle before launch"])
@@ -150,6 +189,9 @@ def certification_reasons(engine: EngineInfo, runs: List[JobResult], score: dict
         reasons.append(f"generated tokens per job != {ref.GENERATED_TOKENS_PER_JOB}")
     if score.get("stability") is None or score["stability"] > ref.MAX_STABILITY:
         reasons.append(f"unstable: stability {score.get('stability')} > {ref.MAX_STABILITY}")
+    problem = clock_problem(clock)
+    if problem:
+        reasons.append(problem)
     if engine.name in ref.CERTIFIED_ENGINES:
         if canary is None:
             reasons.append("canary: not evaluated")
@@ -173,6 +215,7 @@ def build_report(
     canary_scores: Optional[Dict[int, Optional[float]]] = None,
     preflight: Optional[dict] = None,
     finished_at: Optional[str] = None,
+    clock: Optional[dict] = None,
 ) -> dict:
     score = score_runs([r.job_seconds for r in runs])
     mean_w = power.get("mean_watts")
@@ -181,7 +224,7 @@ def build_report(
         round(score["units_per_hour"] / (mean_w / 1000.0), 2) if (mean_w and score.get("units_per_hour")) else None
     )
     canary = evaluate_canary(canary_scores or {}, lock) if engine.name in ref.CERTIFIED_ENGINES else None
-    reasons = certification_reasons(engine, runs, score, canary, lock, preflight)
+    reasons = certification_reasons(engine, runs, score, canary, lock, preflight, clock)
     report = {
         "spec": {"series": ref.SERIES, "spec_version": ref.SPEC_VERSION, "bench_version": __version__},
         "job": {
@@ -210,6 +253,7 @@ def build_report(
         "score": score,
         "canary": canary,
         "power": power,
+        "clock": clock,
         "certified": not reasons,
         "certified_reasons": reasons,
         "prompt_set_sha256": prompt_set_sha256,
@@ -241,6 +285,10 @@ def summarize(report: dict) -> str:
         lines.append(f"mean power: {s['mean_power_watts']} W   units per electric kWh: {s['units_per_electric_kwh']}")
     r0 = report["runs"][0]
     lines.append(f"run 1: {r0['tokens_per_second']} tok/s   TTFT p50 {fmt_ms(r0['ttft_p50_s'])} p95 {fmt_ms(r0['ttft_p95_s'])}   TPOT p50 {fmt_ms(r0['tpot_p50_s'])} p95 {fmt_ms(r0['tpot_p95_s'])}")
+    clk = report.get("clock")
+    if clk:
+        drift = "n/a" if clk["drift_pct"] is None else f"{clk['drift_pct']:+.2f}%"
+        lines.append(f"clock: timer {clk['timer_seconds']} s, wall clock {clk['wall_seconds']} s ({drift})")
     if report["canary"] is not None:
         c = report["canary"]
         mean = canary_mean_delta(c["results"])

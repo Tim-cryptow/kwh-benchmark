@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased (the spec is unchanged)
+## 1.0.0-rc.7 — 2026-10-06
 
+- **The clock check** (SPEC.md §6). The measured runs are timed on the jobs' timer and on the wall clock. A run certifies only when the two agree within 1%, or 2 seconds on a short run. The host client's Windows test (`results/wsl-windows11-2026-10-06` in kwh-host) found Ubuntu's timer under WSL2 running about 5% slow on a laptop, with the wall clock pulled back to Windows' time by a jump of about 2 seconds every half minute. Every job time and every power sample uses that timer, so a benchmark there would have reported about 5% more units per hour, and per kWh, than the card delivered. Reports gain a `clock` block (`timer_seconds`, `wall_seconds`, `drift_pct`) and `kwh-bench run` prints it. `verify` requires it of certified reports from rc.7 on; the committed rc.4–rc.6 reports predate it and still verify. The work, the unit and the canary rule are unchanged.
 - Second RTX 4090 row: **101.51 units/hour**, stability 0.0016, 321.6 W, 315.6 units per electric kWh, canary mean delta 0.0000 (`results/rtx-4090-vast-sandbox.json`). Produced by the host client inside its Docker sandbox on a rented Vast.ai VM: no network, read-only root, no capabilities, an ordinary uid. The bare-metal RunPod 4090 scored 100.56, so the sandbox costs nothing measurable. It is the first certified report from the Docker launch mode.
 - `VLLMEngine(uds=...)` reaches the server over a Unix socket instead of TCP, health checks included, and launches `vllm serve --uds` in subprocess mode. The host client's sandbox uses it to run the certified engine with no network at all. `make_transport()` and `http_client()` give other code the same route to the engine. The dev extra gains uvicorn for the socket test.
 
